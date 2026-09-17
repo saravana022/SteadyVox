@@ -16,7 +16,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:RELEASE.2024-04-18T19-09-19Z
+    image: minio/minio:latest
     container_name: steadyvox_minio_prod
     restart: always
     command: server /data --console-address ":9001"
@@ -53,7 +53,7 @@ services:
         condition: service_healthy
 
   createbuckets:
-    image: minio/mc:RELEASE.2024-04-18T16-45-29Z
+    image: minio/mc:latest
     container_name: steadyvox_createbuckets_prod
     depends_on:
       minio:

@@ -20,7 +20,7 @@ services:
 
   # MinIO (S3-Compatible Object Store)
   minio:
-    image: minio/minio:RELEASE.2024-04-18T19-09-19Z
+    image: minio/minio:latest
     container_name: steadyvox_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -40,7 +40,7 @@ services:
 
   # MinIO Bucket Auto-Provisioning
   createbuckets:
-    image: minio/mc:RELEASE.2024-04-18T16-45-29Z
+    image: minio/mc:latest
     container_name: steadyvox_createbuckets
     depends_on:
       minio:
