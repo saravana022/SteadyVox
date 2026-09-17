@@ -16,10 +16,20 @@ echo "  SteadyVox – EC2 Instance Setup"
 echo "  Research screening tool only — not a medical diagnosis."
 echo "═══════════════════════════════════════════════════════════"
 
-# ── System Update ─────────────────────────────────────────
+# ── System Update & Swap Setup ─────────────────────────────
 echo ""
-echo "[1/6] Updating system packages..."
+echo "[1/6] Updating system packages and ensuring swap space..."
 apt-get update && apt-get upgrade -y
+
+if [ $(free -m | awk '/^Swap:/{print $2}') -eq 0 ]; then
+    echo "  → Creating 2GB swap file to prevent OOM during container builds..."
+    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    echo "  ✓ 2GB swap file created and enabled"
+fi
 
 # ── Install Docker ────────────────────────────────────────
 echo ""
