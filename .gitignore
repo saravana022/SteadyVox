@@ -39,6 +39,9 @@ Thumbs.db
 # Environment & Secrets
 .env
 *.env.local
+*.pem
+*.key
+id_rsa*
 
 # Node & Frontend
 node_modules/
