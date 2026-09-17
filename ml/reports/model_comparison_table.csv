@@ -1,0 +1,4 @@
+Model Name,Architecture,Dataset,Provenance,ROC-AUC,PR-AUC,Accuracy,Precision,Recall,F1-Score
+Tabular MLP (Primary),"MLP (22 Biomarkers, LayerNorm)","Oxford Parkinson's (Real UCI, Little et al.)",Real Clinical Dataset,0.8925,0.9784,0.8919,0.8857,1.0,0.9394
+CNN + BiLSTM,CNN + Bidirectional LSTM (Mel-Spec),Sustained /a/ Phonation Benchmark (600 spk),Synthetic Audio Benchmark,1.0,1.0,1.0,1.0,1.0,1.0
+CNN Baseline,4-Stage 2D CNN (Log Mel-Spec),Sustained /a/ Phonation Benchmark (600 spk),Synthetic Audio Benchmark,1.0,1.0,1.0,1.0,1.0,1.0

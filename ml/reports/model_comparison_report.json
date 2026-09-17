@@ -1,0 +1,107 @@
+{
+  "disclaimer": "Research screening tool only \u2014 not a medical diagnosis.",
+  "models": [
+    {
+      "Model Name": "Tabular MLP (Primary)",
+      "Architecture": "MLP (22 Biomarkers, LayerNorm)",
+      "Dataset": "Oxford Parkinson's (Real UCI, Little et al.)",
+      "Provenance": "Real Clinical Dataset",
+      "ROC-AUC": 0.8925,
+      "PR-AUC": 0.9784,
+      "Accuracy": 0.8919,
+      "Precision": 0.8857,
+      "Recall": 1.0,
+      "F1-Score": 0.9394
+    },
+    {
+      "Model Name": "CNN + BiLSTM",
+      "Architecture": "CNN + Bidirectional LSTM (Mel-Spec)",
+      "Dataset": "Sustained /a/ Phonation Benchmark (600 spk)",
+      "Provenance": "Synthetic Audio Benchmark",
+      "ROC-AUC": 1.0,
+      "PR-AUC": 1.0,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    },
+    {
+      "Model Name": "CNN Baseline",
+      "Architecture": "4-Stage 2D CNN (Log Mel-Spec)",
+      "Dataset": "Sustained /a/ Phonation Benchmark (600 spk)",
+      "Provenance": "Synthetic Audio Benchmark",
+      "ROC-AUC": 1.0,
+      "PR-AUC": 1.0,
+      "Accuracy": 1.0,
+      "Precision": 1.0,
+      "Recall": 1.0,
+      "F1-Score": 1.0
+    }
+  ],
+  "details": {
+    "tabular_mlp": {
+      "dataset": "Oxford Parkinson's (Little et al., 2007)",
+      "provenance": "real_dataset",
+      "test_samples": 37,
+      "calibrated_threshold": 0.9299541711807251,
+      "roc_auc": 0.8924731182795699,
+      "pr_auc": 0.9783770296254859,
+      "accuracy": 0.8918918918918919,
+      "precision": 0.8857142857142857,
+      "recall": 1.0,
+      "f1_score": 0.9393939393939394,
+      "confusion_matrix": [
+        [
+          2,
+          4
+        ],
+        [
+          0,
+          31
+        ]
+      ]
+    },
+    "cnn_bilstm": {
+      "dataset": "Synthetic Sustained Phonation Benchmark",
+      "provenance": "synthetic_audio",
+      "test_samples": 450,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "confusion_matrix": [
+        [
+          195,
+          0
+        ],
+        [
+          0,
+          255
+        ]
+      ]
+    },
+    "cnn_baseline": {
+      "dataset": "Synthetic Sustained Phonation Benchmark",
+      "provenance": "synthetic_audio",
+      "test_samples": 450,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "confusion_matrix": [
+        [
+          195,
+          0
+        ],
+        [
+          0,
+          255
+        ]
+      ]
+    }
+  }
+}
