@@ -40,7 +40,7 @@ services:
 
   # MinIO Bucket Auto-Provisioning
   createbuckets:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: steadyvox_createbuckets
     depends_on:
       minio:

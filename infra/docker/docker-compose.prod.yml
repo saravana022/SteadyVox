@@ -53,7 +53,7 @@ services:
         condition: service_healthy
 
   createbuckets:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: steadyvox_createbuckets_prod
     depends_on:
       minio:
