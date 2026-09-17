@@ -58,6 +58,18 @@ ml/data/processed/*
 *.wav
 *.mp3
 
+# Downloaded datasets & splits
+data/oxford/*.csv
+data/oxford/splits/
+data/istanbul/*.csv
+data/istanbul/splits/
+data/telemonitoring/*.csv
+data/telemonitoring/splits/
+
+# Saved sklearn models
+*.pkl
+*.joblib
+
 # Storage (MinIO / PostgreSQL volumes)
 minio_data/
 postgres_data/

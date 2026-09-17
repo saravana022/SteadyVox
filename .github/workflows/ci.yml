@@ -79,6 +79,7 @@ jobs:
           script: |
             cd /opt/steadyvox || git clone https://github.com/saravana/SteadyVox.git /opt/steadyvox && cd /opt/steadyvox
             git pull origin main
+            docker system prune -f
             docker compose -f infra/docker/docker-compose.prod.yml down
             docker compose -f infra/docker/docker-compose.prod.yml up -d --build
-            echo "SteadyVox production stack successfully deployed to AWS EC2."
+            echo "SteadyVox deployed to EC2 at $(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || echo '13.201.193.223')"

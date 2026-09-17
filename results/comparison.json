@@ -1,0 +1,80 @@
+[
+  {
+    "dataset": "Oxford",
+    "task": "Classification",
+    "model": "Random Forest",
+    "accuracy": 0.9487,
+    "f1": 0.9501,
+    "precision": 0.9573,
+    "recall": 0.9487,
+    "roc_auc": 0.9862,
+    "rmse": "\u2014",
+    "mae": "\u2014",
+    "r2": "\u2014"
+  },
+  {
+    "dataset": "Oxford",
+    "task": "Classification",
+    "model": "MLP Classifier",
+    "accuracy": 0.9487,
+    "f1": 0.9487,
+    "precision": 0.9487,
+    "recall": 0.9487,
+    "roc_auc": 0.9931,
+    "rmse": "\u2014",
+    "mae": "\u2014",
+    "r2": "\u2014"
+  },
+  {
+    "dataset": "Telemonitoring (motor_updrs)",
+    "task": "Regression",
+    "model": "Gradient Boosting",
+    "accuracy": "\u2014",
+    "f1": "\u2014",
+    "precision": "\u2014",
+    "recall": "\u2014",
+    "roc_auc": "\u2014",
+    "rmse": 6.6932,
+    "mae": 5.4178,
+    "r2": 0.2981
+  },
+  {
+    "dataset": "Telemonitoring (motor_updrs)",
+    "task": "Regression",
+    "model": "MLP Regressor",
+    "accuracy": "\u2014",
+    "f1": "\u2014",
+    "precision": "\u2014",
+    "recall": "\u2014",
+    "roc_auc": "\u2014",
+    "rmse": 6.3818,
+    "mae": 5.0499,
+    "r2": 0.3619
+  },
+  {
+    "dataset": "Telemonitoring (total_updrs)",
+    "task": "Regression",
+    "model": "Gradient Boosting",
+    "accuracy": "\u2014",
+    "f1": "\u2014",
+    "precision": "\u2014",
+    "recall": "\u2014",
+    "roc_auc": "\u2014",
+    "rmse": 8.7888,
+    "mae": 6.9338,
+    "r2": 0.3029
+  },
+  {
+    "dataset": "Telemonitoring (total_updrs)",
+    "task": "Regression",
+    "model": "MLP Regressor",
+    "accuracy": "\u2014",
+    "f1": "\u2014",
+    "precision": "\u2014",
+    "recall": "\u2014",
+    "roc_auc": "\u2014",
+    "rmse": 8.2183,
+    "mae": 6.3457,
+    "r2": 0.3905
+  }
+]

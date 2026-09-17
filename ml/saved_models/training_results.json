@@ -1,0 +1,40 @@
+{
+  "Oxford": {
+    "random_forest": {
+      "accuracy": 0.9487,
+      "f1": 0.9501,
+      "precision": 0.9573,
+      "recall": 0.9487,
+      "roc_auc": 0.9862
+    },
+    "mlp": {
+      "accuracy": 0.9487,
+      "f1": 0.9487,
+      "precision": 0.9487,
+      "recall": 0.9487,
+      "roc_auc": 0.9931
+    }
+  },
+  "Telemonitoring": {
+    "motor_updrs_gradient_boosting": {
+      "rmse": 6.6932,
+      "mae": 5.4178,
+      "r2": 0.2981
+    },
+    "motor_updrs_mlp_regressor": {
+      "rmse": 6.3818,
+      "mae": 5.0499,
+      "r2": 0.3619
+    },
+    "total_updrs_gradient_boosting": {
+      "rmse": 8.7888,
+      "mae": 6.9338,
+      "r2": 0.3029
+    },
+    "total_updrs_mlp_regressor": {
+      "rmse": 8.2183,
+      "mae": 6.3457,
+      "r2": 0.3905
+    }
+  }
+}
