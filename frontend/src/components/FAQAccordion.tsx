@@ -20,11 +20,11 @@ export const FAQAccordion: React.FC = () => {
     },
     {
       q: 'How accurate is the screening model?',
-      a: 'Our primary clinical model (Tabular MLP) was evaluated using 5-fold stratified cross-validation on the benchmark Oxford Parkinson\'s Disease Detection Dataset (Little et al., 2007), achieving an ROC-AUC of 0.8925 and F1-score of 0.9394. We transparently report synthetic benchmark numbers as ablation baselines and never claim synthetic performance as clinical efficacy.',
+      a: 'Our calibrated research model (Random Forest + Balanced Platt Scaling) was evaluated using subject-wise Leave-One-Subject-Out (LOSO) cross-validation on the benchmark Oxford Parkinson\'s Disease Dataset (Little et al., 2007), achieving an ROC-AUC of 0.7188 and 89.6% specificity on healthy controls. Synthetic deep learning benchmarks are maintained solely for model ablation and divergence monitoring.',
     },
     {
       q: 'What is the difference between the primary and secondary models?',
-      a: 'The Primary Model (Tabular MLP) processes 22 gold-standard Praat acoustic biomarkers (Jitter, Shimmer, HNR, RPDE) trained on real clinical patient cohorts. The Secondary Model (CNN+BiLSTM) analyzes continuous 2D Log Mel-Spectrograms to detect temporal micro-tremor oscillations (4–7 Hz) across spectrogram frames.',
+      a: 'The Primary Model processes 16 gold-standard Praat acoustic biomarkers (Jitter, Shimmer, HNR, F0) trained on clinical patient cohorts with 1:1 DSP parity and out-of-distribution Mahalanobis guards. The Secondary Model (CNN+BiLSTM) analyzes continuous 2D Log Mel-Spectrograms as a research ablation baseline.',
     },
   ];
 

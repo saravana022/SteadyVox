@@ -7,6 +7,8 @@ export const WhoItsFor: React.FC = () => {
       title: 'Individuals & Families',
       subtitle: 'Early Exploration & Symptom Tracking',
       icon: User,
+      image: '/images/audience-individuals.webp',
+      alt: 'Individuals and family members using non-invasive voice screening at home',
       bullets: [
         'Non-invasive 60-second home screening via standard laptop or phone microphone.',
         'Objective tracking of vocal stability changes over time.',
@@ -17,6 +19,8 @@ export const WhoItsFor: React.FC = () => {
       title: 'Neurologists & SLPs',
       subtitle: 'Objective Dysarthria Triaging',
       icon: Stethoscope,
+      image: '/images/audience-clinicians.webp',
+      alt: 'Neurologists and speech-language pathologists examining objective dysarthria biomarkers',
       bullets: [
         'Standardized acoustic perturbations (Jitter, Shimmer, HNR) complementing MDS-UPDRS III.',
         'Early detection of subclinical phonatory tremor before gross rest tremor.',
@@ -27,10 +31,12 @@ export const WhoItsFor: React.FC = () => {
       title: 'Clinical Researchers',
       subtitle: 'Digital Biomarker Phenotyping',
       icon: Microscope,
+      image: '/images/audience-researchers.webp',
+      alt: 'Clinical neuroscientists and researchers phenotyping digital acoustic biomarkers',
       bullets: [
         'Reproducible DSP pipeline grounded in Praat/Parselmouth algorithms.',
         'Benchmarked against Oxford (Little et al.) and Istanbul clinical cohorts.',
-        'Dual-path model architecture comparing real-data MLP with acoustic CNN-BiLSTM.',
+        'Dual-path model architecture comparing calibrated Random Forest with acoustic CNN-BiLSTM.',
       ],
     },
   ];
@@ -54,29 +60,42 @@ export const WhoItsFor: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="card-nixtio p-6 sm:p-8 flex flex-col justify-between space-y-6"
+                className="card-nixtio overflow-hidden flex flex-col justify-between"
               >
-                <div className="space-y-4">
-                  <div className="w-10 h-10 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-accent">
-                    <Icon className="w-5 h-5" />
+                {/* Visual Header Image */}
+                <div className="relative w-full h-48 sm:h-52 overflow-hidden border-b border-border bg-surface-2">
+                  <img
+                    src={aud.image}
+                    alt={aud.alt}
+                    width={1024}
+                    height={1024}
+                    loading="lazy"
+                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-80" />
+                  <div className="absolute bottom-3 left-4 w-9 h-9 rounded-xl bg-surface/90 backdrop-blur-md border border-border flex items-center justify-center text-accent shadow-md">
+                    <Icon className="w-4 h-4" />
                   </div>
-                  <div>
+                </div>
+
+                <div className="p-6 sm:p-7 space-y-4 flex-1 flex flex-col justify-between">
+                  <div className="space-y-1">
                     <h3 className="text-lg font-bold text-txt tracking-tight">
                       {aud.title}
                     </h3>
-                    <p className="text-xs text-txt-muted mt-0.5">
+                    <p className="text-xs text-txt-muted">
                       {aud.subtitle}
                     </p>
-                  </div>
 
-                  <ul className="space-y-2.5 pt-2">
-                    {aud.bullets.map((b, bIdx) => (
-                      <li key={bIdx} className="flex items-start gap-2.5 text-xs text-txt-muted leading-relaxed">
-                        <CheckCircle2 className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
-                        <span>{b}</span>
-                      </li>
-                    ))}
-                  </ul>
+                    <ul className="space-y-2.5 pt-3">
+                      {aud.bullets.map((b, bIdx) => (
+                        <li key={bIdx} className="flex items-start gap-2.5 text-xs text-txt-muted leading-relaxed">
+                          <CheckCircle2 className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+                          <span>{b}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </div>
             );

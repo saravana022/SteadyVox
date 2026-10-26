@@ -37,6 +37,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [qualityRejection, setQualityRejection] = useState<any | null>(null);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const [apiBannerDismissed, setApiBannerDismissed] = useState(false);
+  const [retrySec, setRetrySec] = useState<number>(3);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Ethical consent state
@@ -47,10 +49,43 @@ export default function App() {
   const [showConsentModal, setShowConsentModal] = useState<boolean>(false);
 
   useEffect(() => {
-    apiClient
-      .checkHealth()
-      .then(() => setApiOnline(true))
-      .catch(() => setApiOnline(false));
+    let timer: ReturnType<typeof setTimeout>;
+    let countdownInterval: ReturnType<typeof setInterval>;
+    let backoff = 3;
+
+    const performHealthCheck = () => {
+      apiClient
+        .checkHealth()
+        .then(() => {
+          setApiOnline(true);
+          backoff = 3;
+        })
+        .catch(() => {
+          setApiOnline(false);
+          setRetrySec(backoff);
+          let remaining = backoff;
+
+          clearInterval(countdownInterval);
+          countdownInterval = setInterval(() => {
+            remaining -= 1;
+            if (remaining >= 0) {
+              setRetrySec(remaining);
+            }
+          }, 1000);
+
+          timer = setTimeout(() => {
+            backoff = Math.min(backoff * 2, 30);
+            performHealthCheck();
+          }, backoff * 1000);
+        });
+    };
+
+    performHealthCheck();
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(countdownInterval);
+    };
   }, []);
 
   const handleStartScreeningClick = () => {
@@ -136,8 +171,26 @@ export default function App() {
         </span>
       </div>
 
-      {/* Sticky Translucent Nixtio Header Nav */}
-      <header className="sticky top-0 z-40 bg-bg/80 backdrop-blur-xl border-b border-border transition-colors">
+      {/* Dismissible API Wake-up/Retry Banner */}
+      {apiOnline === false && !apiBannerDismissed && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 px-4 py-2 text-xs flex items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-2 mx-auto">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400 flex-shrink-0" />
+            <span>Server is waking up or unavailable. Retrying in {retrySec}s…</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setApiBannerDismissed(true)}
+            className="text-amber-400/80 hover:text-amber-300 p-1 rounded hover:bg-amber-500/20 transition"
+            aria-label="Dismiss server retry banner"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Sticky Opaque/Backdrop-Blurred Header Nav */}
+      <header className="sticky top-0 z-40 bg-bg/95 backdrop-blur-2xl border-b border-border shadow-sm transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           {/* Logo & Brand */}
           <div
@@ -150,9 +203,6 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-lg tracking-tight text-txt">SteadyVox</span>
-                <span className="text-[10px] font-mono uppercase bg-accent-subtle text-accent px-2 py-0.5 rounded border border-accent/20">
-                  v2.1
-                </span>
               </div>
               <p className="text-[11px] text-txt-muted hidden sm:block">
                 Voice Biomarkers for Parkinson's Disease Screening
@@ -198,15 +248,6 @@ export default function App() {
 
           {/* Header Action Controls */}
           <div className="flex items-center gap-3">
-            {/* API Status Badge */}
-            <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-surface text-[11px] font-mono text-txt-muted">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  apiOnline === true ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
-                }`}
-              />
-              <span>{apiOnline ? 'API Operational' : 'API Standby'}</span>
-            </div>
 
             {/* Dark/Light Mode Switcher */}
             <ThemeToggle />
@@ -323,7 +364,7 @@ export default function App() {
                       Parkinson's Disease Voice Screening
                     </h2>
                     <p className="text-xs sm:text-sm text-txt-muted max-w-2xl leading-relaxed">
-                      Sustain vowel <strong className="text-txt">/a/</strong> for 3–5 seconds. SteadyVox extracts 16 gold-standard Praat acoustic features and scores them via our calibrated clinical model with out-of-distribution guards.
+                      Sustain vowel <strong className="text-txt">/a/</strong> for 3–5 seconds. SteadyVox extracts 16 gold-standard Praat acoustic features and scores them via our calibrated research model with out-of-distribution guards.
                     </p>
                   </div>
                   <div className="flex-shrink-0 flex items-center gap-3">
@@ -387,21 +428,33 @@ export default function App() {
 
                     {/* Quality Rejection Feedback Box */}
                     {qualityRejection && (
-                      <div className="p-5 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-300 space-y-2 animate-fade-in">
-                        <div className="flex items-center gap-2 font-bold text-red-400">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                          <span>Audio Failed Acoustic Quality Gate:</span>
-                        </div>
-                        <ul className="list-disc list-inside space-y-1 text-[11px] pl-1 text-red-300/90">
-                          {qualityRejection.rejection_reasons?.map((r: string, rIdx: number) => (
-                            <li key={rIdx}>{r}</li>
-                          ))}
-                        </ul>
-                        {qualityRejection.recommendations?.length > 0 && (
-                          <div className="pt-1 text-[11px] text-txt">
-                            <strong>Recommendation:</strong> {qualityRejection.recommendations.join(' ')}
+                      <div className="p-5 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-300 space-y-3 animate-fade-in">
+                        <div className="flex flex-col sm:flex-row items-start gap-4">
+                          <img
+                            src="/images/recorder-empty.webp"
+                            width={1200}
+                            height={896}
+                            loading="lazy"
+                            alt="Acoustic quality re-recording illustration"
+                            className="w-24 h-20 object-cover rounded-lg border border-red-500/20 flex-shrink-0"
+                          />
+                          <div className="space-y-1.5 flex-1">
+                            <div className="flex items-center gap-2 font-bold text-red-400">
+                              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                              <span>Audio Failed Acoustic Quality Gate:</span>
+                            </div>
+                            <ul className="list-disc list-inside space-y-1 text-[11px] pl-1 text-red-300/90">
+                              {qualityRejection.rejection_reasons?.map((r: string, rIdx: number) => (
+                                <li key={rIdx}>{r}</li>
+                              ))}
+                            </ul>
+                            {qualityRejection.recommendations?.length > 0 && (
+                              <div className="pt-1 text-[11px] text-txt">
+                                <strong>Recommendation:</strong> {qualityRejection.recommendations.join(' ')}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     )}
 
@@ -564,14 +617,11 @@ export default function App() {
       {/* Minimal Nixtio Footer */}
       <footer className="border-t border-border bg-surface py-10 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-txt-muted">
-          <div className="space-y-1 text-center md:text-left">
+          <div className="text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start gap-2">
               <span className="font-bold text-txt">SteadyVox</span>
               <span>— Vocal Biomarker Screening</span>
             </div>
-            <p className="text-[11px] text-txt-muted">
-              Built with FastAPI, PyTorch & React. Codebase on GitHub.
-            </p>
           </div>
 
           <div className="p-2.5 px-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs flex items-center gap-2 text-center">

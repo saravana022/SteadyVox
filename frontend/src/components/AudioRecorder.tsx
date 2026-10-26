@@ -219,6 +219,19 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAudioReady, disa
 
       {!audioUrl && !isRecording && (
         <div className="flex flex-col items-center space-y-4 max-w-md">
+          {/* Visual recorder empty state illustration */}
+          <div className="relative w-40 h-28 sm:w-48 sm:h-32 rounded-2xl overflow-hidden border border-border bg-surface-2 shadow-sm">
+            <img
+              src="/images/recorder-empty.webp"
+              alt="Microphone acoustic phonation recording setup"
+              width={1200}
+              height={896}
+              loading="lazy"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-60" />
+          </div>
+
           {/* Large accessible 64px button */}
           <button
             type="button"

@@ -1,90 +1,155 @@
 {
   "last_reviewed": "October 2026",
+  "review_status": "TODO: Clinician review pending",
   "sources": [
-    "Movement Disorder Society (MDS) Clinical Diagnostic Criteria",
-    "Parkinson's Foundation Consensus Clinical Review",
-    "National Institute of Neurological Disorders and Stroke (NINDS)"
+    "Movement Disorder Society (MDS) Clinical Diagnostic Criteria (Postuma et al., 2015)",
+    "Parkinson's Foundation Consensus Clinical Guidelines",
+    "National Institute of Neurological Disorders and Stroke (NINDS) Clinical Overview"
   ],
   "symptoms": [
     {
       "id": "tremor",
       "name": "Resting Tremor",
       "type": "motor",
-      "prevalence": "70-80%",
-      "description": "Involuntary 4-6 Hz oscillatory shaking occurring predominantly at rest (often pill-rolling in hands). Usually unilateral onset.",
-      "early_indicator": true
+      "icon": "Activity",
+      "prevalence": "70–80%",
+      "description": "Involuntary 4–6 Hz rhythmic oscillation occurring predominantly when muscles are at rest (often pill-rolling in fingers). Usually unilateral onset.",
+      "early_indicator": true,
+      "source": "MDS Clinical Diagnostic Criteria (Postuma et al., 2015)",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "bradykinesia",
       "name": "Bradykinesia",
       "type": "motor",
-      "prevalence": "95-100%",
-      "description": "Slowness of movement initiation and execution with progressive decrement in amplitude during repetitive actions.",
-      "early_indicator": true
+      "icon": "Gauge",
+      "prevalence": "95–100%",
+      "description": "Slowness of movement initiation and execution with progressive decrement in speed and amplitude during repetitive actions.",
+      "early_indicator": true,
+      "source": "MDS Clinical Diagnostic Criteria (Postuma et al., 2015)",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "rigidity",
       "name": "Cogwheel Rigidity",
       "type": "motor",
-      "prevalence": "85-90%",
-      "description": "Involuntary muscular stiffness and resistance to passive limb flexion, often feeling like a ratchet or cogwheel.",
-      "early_indicator": false
+      "icon": "Zap",
+      "prevalence": "85–90%",
+      "description": "Increased muscular stiffness and resistance to passive limb flexion, often feeling like a ratchet or cogwheel throughout movement.",
+      "early_indicator": false,
+      "source": "Parkinson's Foundation Clinical Guide",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "hypophonia",
       "name": "Hypophonia & Vocal Dysarthria",
       "type": "motor",
-      "prevalence": "70-90%",
-      "description": "Soft, monotone, or breathy vocal production caused by laryngeal rigidity, glottal tremor, and reduced respiratory support.",
-      "early_indicator": true
+      "icon": "Mic",
+      "prevalence": "70–90%",
+      "description": "Reduced vocal loudness, breathy tone, acoustic pitch tremor, increased jitter/shimmer, and monotone delivery from laryngeal rigidity.",
+      "early_indicator": true,
+      "source": "Sapir et al., Speech and Voice Disorders in Parkinson's",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "postural_instability",
       "name": "Postural Instability",
       "type": "motor",
-      "prevalence": "50-70%",
-      "description": "Impaired balance, gait freezing, and reduced righting reflexes leading to falls, typically appearing in moderate-to-advanced stages.",
-      "early_indicator": false
+      "icon": "Footprints",
+      "prevalence": "50–70%",
+      "description": "Impaired balance, gait freezing, and reduced righting reflexes leading to falls, typically emerging in moderate-to-advanced stages.",
+      "early_indicator": false,
+      "source": "Hoehn & Yahr Clinical Scale Consensus",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
+    },
+    {
+      "id": "micrographia",
+      "name": "Micrographia",
+      "type": "motor",
+      "icon": "Edit3",
+      "prevalence": "50–65%",
+      "description": "Handwriting becomes cramped, tiny, and progressively smaller across lines due to basal ganglia motor sequence disruption.",
+      "early_indicator": true,
+      "source": "NINDS Clinical Monograph",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "anosmia",
       "name": "Hyposmia / Loss of Smell",
       "type": "non-motor",
-      "prevalence": "75-90%",
+      "icon": "Eye",
+      "prevalence": "75–90%",
       "description": "Reduced olfactory acuity that frequently precedes cardinal motor signs by 5 to 10 years due to early olfactory bulb Lewy pathology.",
-      "early_indicator": true
+      "early_indicator": true,
+      "source": "Doty et al., Olfactory Dysfunction in Parkinson's",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "rbd",
       "name": "REM Sleep Behavior Disorder (RBD)",
       "type": "non-motor",
-      "prevalence": "40-60%",
-      "description": "Loss of normal muscle atonia during REM sleep causing vivid dream enactment, shouting, or thrashing in bed.",
-      "early_indicator": true
+      "icon": "Moon",
+      "prevalence": "40–60%",
+      "description": "Loss of normal muscle atonia during REM sleep causing vivid dream enactment, vocalizing, or thrashing during sleep cycles.",
+      "early_indicator": true,
+      "source": "Iranzo et al., Neurobiology of RBD in Synucleinopathies",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "constipation",
       "name": "Dysautonomia & Constipation",
       "type": "non-motor",
-      "prevalence": "60-80%",
-      "description": "Autonomic nervous system dysfunction affecting enteric nervous system plexuses years prior to clinical motor diagnosis.",
-      "early_indicator": true
+      "icon": "Flame",
+      "prevalence": "60–80%",
+      "description": "Autonomic nervous system dysfunction affecting enteric nervous plexuses years prior to clinical motor diagnosis.",
+      "early_indicator": true,
+      "source": "Braak et al., Dual-hit Hypothesis of Parkinson Pathology",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "depression_anxiety",
-      "name": "Depression and Anxiety",
+      "name": "Depression & Anxiety",
       "type": "non-motor",
-      "prevalence": "40-50%",
-      "description": "Neurochemical disruptions in dopamine, serotonin, and noradrenaline pathways manifesting as mood and motivational changes.",
-      "early_indicator": false
+      "icon": "HeartHandshake",
+      "prevalence": "40–50%",
+      "description": "Neurochemical disruptions across dopamine, serotonin, and noradrenaline pathways manifesting as mood and motivational changes.",
+      "early_indicator": false,
+      "source": "Aarsland et al., Neuropsychiatric Symptoms in PD",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     },
     {
       "id": "cognitive_slowing",
       "name": "Cognitive Slowing (Bradyphrenia)",
       "type": "non-motor",
-      "prevalence": "30-50%",
-      "description": "Executive functioning changes, slowed information processing, and difficulties in multitasking or complex planning.",
-      "early_indicator": false
+      "icon": "BrainCircuit",
+      "prevalence": "30–50%",
+      "description": "Executive functioning changes, slowed information processing speed, and reduced multitasking or complex spatial navigation capacity.",
+      "early_indicator": false,
+      "source": "MDS Cognitive Impairment Criteria",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
+    },
+    {
+      "id": "dysphagia",
+      "name": "Dysphagia & Sialorrhea",
+      "type": "non-motor",
+      "icon": "Utensils",
+      "prevalence": "50–80%",
+      "description": "Coordination deficits across oropharyngeal swallowing phases causing coughing during meals, sialorrhea, and aspiration risks.",
+      "early_indicator": false,
+      "source": "Pflug et al., Swallowing Dysfunction in Parkinsonism",
+      "last_reviewed": "October 2026",
+      "clinician_review_needed": true
     }
   ]
 }

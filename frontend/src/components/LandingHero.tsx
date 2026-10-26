@@ -18,7 +18,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartTest, onViewEvi
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-surface/80 backdrop-blur-md shadow-sm">
               <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
               <span className="text-[11px] font-semibold tracking-wider uppercase text-txt-muted">
-                Calibrated Clinical Acoustic Biomarkers • Research Screener
+                Calibrated Research Acoustic Biomarkers • Research Screener
               </span>
             </div>
 
@@ -28,7 +28,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartTest, onViewEvi
                 Screen Parkinson's Voice Markers in Seconds.
               </h1>
               <p className="text-base sm:text-lg text-txt-muted leading-relaxed max-w-2xl font-normal">
-                Non-invasive analysis of sustained vowel phonation (<strong className="text-txt">/a/</strong>). SteadyVox isolates 16 clinical Praat acoustic perturbations—jitter, shimmer, and harmonics-to-noise ratio—calibrated via subject-wise cross-validation with out-of-distribution protection.
+                Non-invasive analysis of sustained vowel phonation (<strong className="text-txt">/a/</strong>). SteadyVox isolates 16 Praat acoustic perturbations—jitter, shimmer, and harmonics-to-noise ratio—calibrated via subject-wise cross-validation with out-of-distribution protection.
               </p>
             </div>
 
@@ -58,13 +58,34 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartTest, onViewEvi
             </div>
           </div>
 
-          {/* Hero Right Graphic */}
-          <div className="lg:col-span-5 flex justify-center">
-            <HeroIllustration className="w-full" />
+          {/* Hero Right Graphic with theme-aware background image behind live HTML chart card */}
+          <div className="lg:col-span-5 relative flex justify-center items-center">
+            {/* Theme-aware hero background image */}
+            <div className="absolute inset-0 -m-4 sm:-m-6 overflow-hidden rounded-3xl pointer-events-none opacity-50 dark:opacity-40">
+              <img
+                src="/images/hero-bg-dark.webp"
+                alt="Acoustic biomarker neural spectrum background"
+                width={1376}
+                height={768}
+                className="w-full h-full object-cover rounded-3xl hidden dark:block"
+              />
+              <img
+                src="/images/hero-bg-light.webp"
+                alt="Acoustic biomarker neural spectrum background"
+                width={1376}
+                height={768}
+                className="w-full h-full object-cover rounded-3xl block dark:hidden"
+              />
+              {/* Calm gradient keeping left third unobtrusive for high WCAG contrast */}
+              <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/40 to-transparent pointer-events-none" />
+            </div>
+
+            {/* Live HTML Hero Chart Card */}
+            <HeroIllustration className="w-full relative z-10" />
           </div>
         </div>
 
-        {/* Verified Honest Metrics Strip (from model_metrics.json & Little et al. Oxford Cohort) */}
+        {/* Verified Honest Metrics Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-8 border-t border-border">
           <div className="p-4 rounded-xl border border-border/60 bg-surface/40">
             <div className="text-2xl sm:text-3xl font-extrabold text-txt tracking-tight font-mono">
