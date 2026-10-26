@@ -25,6 +25,7 @@ import { AudioRecorder } from './components/AudioRecorder';
 import { FileUpload } from './components/FileUpload';
 import { ScreeningResult } from './components/ScreeningResult';
 import { HistoryTable } from './components/HistoryTable';
+import { ParkinsonKnowledgeHub } from './components/ParkinsonKnowledgeHub';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'overview' | 'screen' | 'history' | 'evidence'>('overview');
@@ -296,6 +297,7 @@ export default function App() {
               onViewEvidence={() => setActiveTab('evidence')}
             />
             <ProcessSteps />
+            <ParkinsonKnowledgeHub />
             <VoiceTasksGrid />
             <WhoItsFor />
             <FAQAccordion />

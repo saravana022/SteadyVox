@@ -16,9 +16,19 @@ echo "│   AI-Powered Voice Analysis for PD Research │"
 echo "└─────────────────────────────────────────────┘"
 echo ""
 
-# Kill any existing instances
+# Kill any existing instances & free ports 8000 and 5173
+echo "▶  Freeing ports 8000 and 5173..."
 pkill -f "uvicorn backend.app.main" 2>/dev/null || true
 pkill -f "vite --host" 2>/dev/null || true
+# Stop any conflicting Docker container binding port 8000
+if command -v docker &>/dev/null; then
+    docker ps -q --filter "publish=8000" 2>/dev/null | xargs -r docker stop 2>/dev/null || true
+fi
+# Force kill any remaining processes on port 8000 or 5173
+if command -v fuser &>/dev/null; then
+    fuser -k 8000/tcp 2>/dev/null || true
+    fuser -k 5173/tcp 2>/dev/null || true
+fi
 sleep 1
 
 # ── 1. Start Backend ──────────────────────────────
