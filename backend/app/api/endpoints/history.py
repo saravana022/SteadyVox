@@ -1,4 +1,4 @@
-"""SteadyVox Screening History and Audio Retrieval Endpoints.
+"""SteadyVox Screening History, Audio Retrieval, and Deletion Endpoints.
 
 RESEARCH SCREENING TOOL ONLY — NOT A MEDICAL DIAGNOSIS.
 """
@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import RedirectResponse, StreamingResponse
 import io
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, delete
 
 from backend.app.core.config import settings
 from backend.app.db.session import get_db
@@ -50,10 +50,14 @@ async def list_history(
                 id=s.id,
                 patient_identifier=s.patient_identifier,
                 original_filename=s.original_filename,
+                audio_sha256=s.audio_sha256,
+                risk_level=s.risk_level or "uncertain",
                 prediction=s.prediction,
                 probability=s.probability,
                 confidence=s.confidence,
+                model_version=s.model_version or settings.PRIMARY_MODEL_VERSION,
                 model_architecture=s.model_architecture,
+                quality_report=s.quality_report,
                 biomarkers=s.biomarkers,
                 disclaimer=s.disclaimer or settings.DISCLAIMER_TEXT,
                 created_at=s.created_at.isoformat() if s.created_at else "",
@@ -62,7 +66,7 @@ async def list_history(
         ]
         return ScreeningHistoryList(total=total, items=items, disclaimer=settings.DISCLAIMER_TEXT)
     except Exception as e:
-        # If database table is empty or error, return empty list gracefully
+        print(f"History listing fallback: {e}")
         return ScreeningHistoryList(total=0, items=[], disclaimer=settings.DISCLAIMER_TEXT)
 
 
@@ -85,14 +89,39 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
         id=session.id,
         patient_identifier=session.patient_identifier,
         original_filename=session.original_filename,
+        audio_sha256=session.audio_sha256,
+        risk_level=session.risk_level or "uncertain",
         prediction=session.prediction,
         probability=session.probability,
         confidence=session.confidence,
+        model_version=session.model_version or settings.PRIMARY_MODEL_VERSION,
         model_architecture=session.model_architecture,
+        quality_report=session.quality_report,
         biomarkers=session.biomarkers,
         disclaimer=session.disclaimer or settings.DISCLAIMER_TEXT,
         created_at=session.created_at.isoformat() if session.created_at else "",
     )
+
+
+@router.delete(
+    "/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a screening session record (Privacy right to erasure)",
+)
+async def delete_session(session_id: str, db: AsyncSession = Depends(get_db)):
+    stmt = select(ScreeningSession).where(ScreeningSession.id == session_id)
+    res = await db.execute(stmt)
+    session = res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    del_stmt = delete(ScreeningSession).where(ScreeningSession.id == session_id)
+    await db.execute(del_stmt)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -104,7 +133,7 @@ async def get_session_audio(session_id: str, db: AsyncSession = Depends(get_db))
     res = await db.execute(stmt)
     session = res.scalar_one_or_none()
     if not session or not session.audio_s3_key:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio file not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio file not found or user opted out of retention")
 
     if storage_service.is_s3_available():
         presigned_url = storage_service.get_presigned_url(session.audio_s3_key)

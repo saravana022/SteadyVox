@@ -28,26 +28,17 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency for yielding database session."""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+_db_initialized = False
 
 
 async def init_db():
     """Initializes tables on startup with seamless SQLite fallback."""
-    global engine, AsyncSessionLocal
+    global engine, AsyncSessionLocal, _db_initialized
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         print("Connected to PostgreSQL and verified schema.")
+        _db_initialized = True
     except Exception as e:
         print(f"PostgreSQL unreachable ({e}). Initializing SQLite async database fallback.")
         sqlite_url = "sqlite+aiosqlite:///./steadyvox_dev.db"
@@ -56,3 +47,20 @@ async def init_db():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         print("SQLite fallback database initialized successfully.")
+        _db_initialized = True
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency for yielding database session with auto-init safety."""
+    global _db_initialized
+    if not _db_initialized:
+        await init_db()
+
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()

@@ -16,18 +16,28 @@
 
 Parkinson's Disease (PD) is a progressive neurodegenerative disorder caused by the depletion of dopaminergic neurons in the *substantia nigra pars compacta*. Hypokinetic dysarthria—characterized by vocal tremor, reduced loudness, monopitch, breathiness, and articulatory imprecision—often emerges years before noticeable gross motor tremors.
 
-SteadyVox implements a **dual-path analysis pipeline**:
+SteadyVox implements a **dual-path analysis pipeline** with an automated pre-flight **Audio Quality Gate**:
 
-### Path 1: Deep Learning on Raw Audio (CNN + BiLSTM)
-- Time-preserving 2D Log Mel-Spectrograms processed through a **CNN + BiLSTM with Temporal Self-Attention**
-- Captures vocal tremor dynamics (4–7 Hz modulation) and phonation decay over time
-- Extracts clinical acoustic perturbations: Fundamental frequency ($F_0$), Jitter, Shimmer, and HNR via **Praat / Parselmouth**
+### Pre-Flight: Audio Quality Gate
+Before passing audio into model inference, an automated signal hygiene gate evaluates the recording:
+- **Duration**: Validates 1.0s – 12.0s sustained phonation
+- **Signal-to-Noise Ratio (SNR)**: Enforces $\ge 9.0\text{ dB}$ (WADA-SNR algorithm)
+- **Clipping Ratio**: Ensures digital saturation is $\le 3.0\%$
+- **Silence Ratio**: Ensures active phonation is present ($\le 75\%$ silence)
+- Rejects substandard audio with **RFC 7807 Problem Details** (HTTP 422) containing actionable recording recommendations.
 
-### Path 2: Tabular ML on Extracted Voice Features (Random Forest + MLP)
-- Trained on the **Oxford Parkinson's Disease Detection Dataset** (UCI ID 174, 195 recordings, 31 subjects)
-- Also evaluated on the **Parkinson's Telemonitoring Dataset** (UCI ID 189, 5,875 recordings, 42 subjects)
-- Uses extracted voice perturbation features (Jitter, Shimmer, HNR, RPDE, DFA, PPE, etc.)
-- Random Forest and MLP classifiers for binary PD detection; Gradient Boosting and MLP regressors for UPDRS severity prediction
+### Path 1: Primary Clinical Model (Oxford Tabular MLP)
+- **Clinical Provenance**: Trained on the real **Oxford Parkinson's Disease Dataset** (UCI ID 174, 195 clinical recordings from 31 subjects).
+- **Feature Extraction**: Extracts 22 clinical acoustic biomarkers via **Praat/Parselmouth** ($F_0$, 5 Jitter metrics, 6 Shimmer metrics, HNR) combined with nonlinear recurrence dynamics (RPDE, DFA, Spread1/2, PPE).
+- **Performance**: High clinical discrimination (**ROC-AUC 0.8925**, **F1 0.9487**).
+- **Risk Stratification**: 3-tier clinical calibration:
+  - `low` ($p < 0.40$): Low clinical risk indicator
+  - `uncertain` ($0.40 \le p \le 0.70$): Indeterminate / borderline zone (repeat test recommended)
+  - `elevated` ($p > 0.70$): Elevated acoustic dysphonia indicator
+
+### Path 2: Secondary Acoustic Model (CNN + BiLSTM Benchmark)
+- **Acoustic Spectrograms**: Time-preserving 2D Log Mel-Spectrograms processed through a **CNN + BiLSTM with Temporal Self-Attention**.
+- **Role & Disclaimer**: Serves as an experimental benchmark trained on synthetic sustained phonations. Clearly labeled in every response as an ablation baseline; never substituted for clinical ground truth.
 
 ---
 
@@ -35,14 +45,16 @@ SteadyVox implements a **dual-path analysis pipeline**:
 
 ```
 +─────────────────────────────────────────────────────────────────────────────+
-│                           REACT + VITE FRONTEND                             │
-│     Live 5s Phonation Audio Recording (Web Audio API) or WAV/MP3 Upload    │
-│            Prominent Non-Diagnostic Research Disclaimer Banner              │
+│                       REACT + VITE FRONTEND (Nixtio UI)                     │
+│    • Dark-first responsive layout (WCAG AA compliant, hairline borders)     │
+│    • Live 16kHz mono audio recording with real-time VU level meter          │
+│    • 3-tier risk badge, acoustic biomarker cards, RFC 7807 error toasts     │
+│    • GDPR consent modal with audio retention opt-in/opt-out                 │
 +──────────────────────────────────────┬──────────────────────────────────────+
-                                       │ POST /api/v1/screen/upload
+                                       │ POST /api/v1/screen
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
-│                             NGINX REVERSE PROXY                             │
+│                         NGINX REVERSE PROXY / INGRESS                       │
 │                     Routes / -> Frontend, /api/ -> Backend                  │
 +──────────────────────────────────────┬──────────────────────────────────────+
                                        │
@@ -50,19 +62,21 @@ SteadyVox implements a **dual-path analysis pipeline**:
 +─────────────────────────────────────────────────────────────────────────────+
 │                            FASTAPI BACKEND API                              │
 │                                                                             │
-│  1. Signal Cleaning: Mono convert, resample to 16kHz, silence trim, RMS norm│
-│  2. Acoustic Extraction: Praat (Jitter, Shimmer, HNR, F0) + Log Mel-Spec    │
-│  3. Model Inference: CNN + BiLSTM with Temporal Attention                   │
-│  4. Data Persistence: PostgreSQL (session metadata) + AWS S3/MinIO (audio)  │
-│  5. Telemetry: Prometheus Metrics (/metrics) -> Grafana Monitoring Dashboard│
+│  0. Request Tracing: Injects X-Request-ID and X-Process-Time-Ms             │
+│  1. Audio Quality Gate: Validates duration, SNR, clipping, silence          │
+│  2. Acoustic Extraction: 22 Praat biomarkers + Log Mel-Spectrogram          │
+│  3. Dual-Path Inference: Oxford Tabular MLP (primary) + CNN+BiLSTM (second) │
+│  4. Background Task: Asynchronous S3/MinIO upload without blocking client   │
+│  5. Database: Async PostgreSQL with transparent SQLite fallback             │
+│  6. Telemetry: Prometheus (/metrics) + stage latencies breakdown            │
 +──────────────────────────────────────┬──────────────────────────────────────+
                                        │
         ┌──────────────────────────────┴──────────────────────────────┐
         ▼                                                             ▼
 +───────────────────────────+                   +─────────────────────────────+
-│    POSTGRESQL DATABASE    │                   │      AWS S3 / MINIO         │
+│    POSTGRESQL / SQLITE    │                   │      AWS S3 / MINIO         │
 │  Screening sessions, risk │                   │ Raw audio recordings (.wav) │
-│  confidence, biomarkers   │                   │ Presigned URL streaming     │
+│  SHA256, GDPR erasure API │                   │ Non-blocking async upload   │
 +───────────────────────────+                   +─────────────────────────────+
 ```
 
@@ -125,16 +139,26 @@ Models evaluated on the held-out test split of unseen speakers (32 test samples,
 
 ---
 
+---
+
 ## 🚀 Quick Start (Local Development)
 
-### 1. Clone & Set Up Environment
+### Option A: Native Localhost (One-Command Runner)
+Run the full stack natively on your machine without needing Docker or external PostgreSQL:
 ```bash
 git clone https://github.com/saravana/SteadyVox.git
 cd SteadyVox
 cp .env.example .env
-```
 
-### 2. Run Local Multi-Service Development Stack (Docker Compose)
+# Start both FastAPI backend (with auto SQLite fallback) and Vite frontend:
+bash start-localhost.sh
+```
+Access endpoints:
+- **Web App**: http://localhost:5173
+- **FastAPI Interactive Docs**: http://localhost:8000/docs
+- **Backend Readiness**: http://localhost:8000/api/v1/ready
+
+### Option B: Local Docker Compose Stack
 ```bash
 docker compose -f infra/docker/docker-compose.dev.yml up -d --build
 ```
@@ -144,7 +168,7 @@ Access endpoints:
 - **MinIO S3 Console**: http://localhost:9001 (User: `minioadmin` / Pass: `minioadmin`)
 - **PostgreSQL Database**: `localhost:5432` (DB: `steadyvox_db`)
 
-### 3. Run Production Stack with Prometheus & Grafana
+### Option C: Production Docker Stack with Observability
 ```bash
 docker compose -f infra/docker/docker-compose.prod.yml up -d --build
 ```
@@ -269,29 +293,59 @@ ml/tests/test_model.py::test_cnn_bilstm_forward PASSED                   [100%]
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/v1/health` | Service health status and research disclaimer |
-| `POST` | `/api/v1/screen/upload` | Upload audio phonation (`.wav`/`.mp3`), run CNN+BiLSTM inference, extract Praat biomarkers, persist to PostgreSQL and S3 |
-| `GET` | `/api/v1/history` | Paginated list of past screening sessions |
-| `GET` | `/api/v1/history/{id}` | Detailed metrics for a specific screening session |
+| `GET` | `/api/v1/health` | Service liveness health check & mandatory research disclaimer |
+| `GET` | `/api/v1/ready` | Service readiness probe (database connectivity & model weights loaded) |
+| `POST` | `/api/v1/screen` | **Primary dual-path screening**: audio quality gate, 22 Praat biomarkers, Oxford Tabular MLP + CNN/BiLSTM, async S3 persistence |
+| `POST` | `/api/v1/screen/upload` | *(Deprecated)* Legacy upload route maintaining backward compatibility |
+| `GET` | `/api/v1/history` | Paginated screening audit trail with 3-tier risk badges & SHA256 hashes |
+| `GET` | `/api/v1/history/{id}` | Detailed session metrics, biomarker breakdown & quality report |
+| `DELETE` | `/api/v1/history/{id}` | **GDPR Right-to-Erasure**: permanently purges session metadata & S3 audio |
 | `GET` | `/api/v1/history/{id}/audio` | Stream or presigned URL redirect for recorded audio |
 | `GET` | `/metrics` | Prometheus metrics scrape endpoint |
 
-### Example cURL Request
+### Example cURL Request (Dual-Path Screening)
 ```bash
-curl -X POST "http://13.201.193.223/api/v1/screen/upload" \
+curl -X POST "http://localhost:8000/api/v1/screen" \
+  -H "Accept: application/json" \
   -F "file=@sample_phonation.wav;type=audio/wav" \
-  -F "patient_identifier=PATIENT-001"
+  -F "patient_identifier=PATIENT-001" \
+  -F "consent_given=true"
 ```
 
-Response:
+### Successful Response (`201 Created` / `200 OK`)
 ```json
 {
   "session_id": "8f3b2a1c-...",
   "patient_identifier": "PATIENT-001",
+  "audio_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "prediction": "parkinsons",
-  "probability": 0.521,
-  "confidence": 0.521,
-  "model_architecture": "cnn_bilstm",
+  "probability": 0.8124,
+  "confidence": 0.8124,
+  "risk_level": "elevated",
+  "model_architecture": "Tabular MLP (Clinical Ground Truth)",
+  "model_version": "2.1.0-oxford",
+  "quality_report": {
+    "passed": true,
+    "duration_seconds": 3.42,
+    "snr_db": 22.8,
+    "clipping_ratio": 0.0001,
+    "silence_ratio": 0.12,
+    "recommendations": []
+  },
+  "primary_model": {
+    "name": "Tabular MLP (Clinical Ground Truth)",
+    "version": "2.1.0-oxford",
+    "provenance": "Oxford Parkinson's Disease Dataset (UCI ML Repository, 195 recordings, Little et al.)",
+    "risk_level": "elevated",
+    "score": 0.8124
+  },
+  "secondary_model": {
+    "name": "CNN + BiLSTM (Acoustic Spectrogram)",
+    "version": "1.0.0-synthetic-benchmark",
+    "provenance": "Sustained /a/ biophysical simulation benchmark (600 speakers, synthetic ablation)",
+    "risk_level": "uncertain",
+    "score": 0.542
+  },
   "biomarkers": {
     "f0_mean": 134.2,
     "f0_std": 14.8,
@@ -304,10 +358,41 @@ Response:
     "shimmer_local_db": 0.65,
     "shimmer_apq3_percent": 3.91,
     "shimmer_apq5_percent": 5.47,
-    "hnr_mean_db": 13.8
+    "hnr_mean_db": 13.8,
+    "rpde": 0.482,
+    "dfa": 0.715,
+    "ppe": 0.231
   },
-  "latency_ms": 142.5,
-  "disclaimer": "Research screening tool only — not a medical diagnosis."
+  "stage_latencies": {
+    "quality_gate_ms": 12.4,
+    "acoustic_extraction_ms": 182.1,
+    "primary_inference_ms": 0.8,
+    "secondary_inference_ms": 22.3,
+    "total_ms": 242.6
+  },
+  "latency_ms": 242.6,
+  "disclaimer": "Research screening tool only — not a medical diagnosis. Consult a qualified neurologist."
+}
+```
+
+### Audio Quality Gate Rejection (`422 Unprocessable Entity` — RFC 7807)
+```json
+{
+  "type": "https://steadyvox.health/problems/audio-quality-degraded",
+  "title": "Audio Quality Gate Check Failed",
+  "status": 422,
+  "detail": "Background noise level is too high (SNR: 6.2 dB < minimum 9.0 dB).",
+  "instance": "/api/v1/screen",
+  "invalid_params": [
+    {
+      "name": "snr_db",
+      "reason": "Signal-to-noise ratio is 6.20 dB, below the acceptable threshold of 9.0 dB."
+    }
+  ],
+  "recommendations": [
+    "Move to a quieter room away from fans, air conditioning, and traffic.",
+    "Hold the microphone approximately 10-15 cm (4-6 inches) from your mouth at a 45° angle."
+  ]
 }
 ```
 

@@ -1,39 +1,64 @@
+"""SteadyVox FastAPI Application Entrypoint.
+
+RESEARCH SCREENING TOOL ONLY — NOT A MEDICAL DIAGNOSIS.
+"""
+
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from backend.app.core.config import settings
-from backend.app.db.session import init_db
+from backend.app.db.session import init_db, engine
+from backend.app.middleware.request_id import RequestTracingMiddleware
 from backend.app.api.endpoints.screening import router as screening_router
 from backend.app.api.endpoints.history import router as history_router
+from backend.app.services.inference import inference_service
+from backend.app.services.storage import storage_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize DB tables on startup
+    # 1. Initialize DB tables
     try:
         await init_db()
         print("Database schema initialized successfully.")
     except Exception as e:
-        print(f"Database init warning (running in detached mode): {e}")
+        print(f"Database init warning (running in fallback mode): {e}")
+
+    # 2. Warm up ML models (eliminates cold start latency)
+    try:
+        inference_service.warmup()
+    except Exception as e:
+        print(f"Inference warm-up notice: {e}")
+
     yield
+
+    # Clean up DB engine pools on shutdown
+    try:
+        await engine.dispose()
+    except Exception:
+        pass
 
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description=(
-        "Research screening API for vocal biomarkers associated with Parkinson's Disease. "
-        f"IMPORTANT NOTICE: {settings.DISCLAIMER_TEXT}"
+        "Dual-Path Acoustic Biomarker Voice Screening Platform for Parkinson's Disease. "
+        f"IMPORTANT REGULATORY NOTICE: {settings.DISCLAIMER_TEXT}"
     ),
     openapi_tags=[
-        {"name": "health", "description": "Service health checks and readiness"},
-        {"name": "screening", "description": "Voice upload and Parkinson's screening analysis"},
-        {"name": "history", "description": "Patient screening history and stored metadata"},
+        {"name": "screening", "description": "Unified voice screening and quality validation"},
+        {"name": "history", "description": "Screening records timeline and audit history"},
+        {"name": "health", "description": "Service health checks and readiness probes"},
     ],
     lifespan=lifespan,
 )
+
+# Tracing Middleware
+app.add_middleware(RequestTracingMiddleware)
 
 # Setup CORS
 if settings.BACKEND_CORS_ORIGINS:
@@ -56,7 +81,7 @@ app.include_router(history_router, prefix="/api/v1/history", tags=["history"])
 
 @app.get("/api/v1/health", tags=["health"])
 async def health_check():
-    """Service health check endpoint returning system status and research disclaimer."""
+    """Liveness probe returning service status and research disclaimer."""
     return {
         "status": "healthy",
         "service": settings.PROJECT_NAME,
@@ -64,6 +89,32 @@ async def health_check():
         "environment": settings.ENVIRONMENT,
         "disclaimer": settings.DISCLAIMER_TEXT,
     }
+
+
+@app.get("/api/v1/ready", tags=["health"])
+async def readiness_check():
+    """Readiness probe verifying DB connectivity and ML model weights."""
+    models_ready = (
+        inference_service.tabular_model is not None and
+        inference_service.audio_model is not None
+    )
+    s3_ready = storage_service.is_s3_available()
+
+    payload = {
+        "ready": models_ready,
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "checks": {
+            "primary_model_loaded": inference_service.tabular_model is not None,
+            "secondary_model_loaded": inference_service.audio_model is not None,
+            "storage_s3_connected": s3_ready,
+        },
+        "disclaimer": settings.DISCLAIMER_TEXT,
+    }
+
+    if not models_ready:
+        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=payload)
+    return payload
 
 
 @app.get("/", tags=["health"])

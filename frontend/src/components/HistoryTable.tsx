@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { HistoryItem, apiClient } from '../api/client';
-import { History, RefreshCw, AlertCircle, CheckCircle2, AlertOctagon, ShieldAlert } from 'lucide-react';
+import { History, RefreshCw, AlertCircle, CheckCircle2, AlertOctagon, HelpCircle, ShieldAlert, Trash2 } from 'lucide-react';
 
 export const HistoryTable: React.FC = () => {
   const [sessions, setSessions] = useState<HistoryItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const pageSize = 10;
@@ -19,7 +20,7 @@ export const HistoryTable: React.FC = () => {
       setTotal(data.total);
     } catch (err: any) {
       console.error(err);
-      setError('Could not connect to database history. Showing local active session state.');
+      setError('Could not retrieve database history.');
     } finally {
       setLoading(false);
     }
@@ -29,99 +30,141 @@ export const HistoryTable: React.FC = () => {
     loadHistory(page * pageSize);
   }, [page]);
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to permanently erase this screening session?')) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      await apiClient.deleteSession(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      setTotal((t) => Math.max(0, t - 1));
+    } catch (err: any) {
+      alert(`Deletion failed: ${err.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const getRiskBadge = (risk: string) => {
+    switch (risk) {
+      case 'low':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase font-mono bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+            <CheckCircle2 className="w-3 h-3" /> Low
+          </span>
+        );
+      case 'elevated':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase font-mono bg-rose-500/15 border border-rose-500/30 text-rose-400">
+            <AlertOctagon className="w-3 h-3" /> Elevated
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase font-mono bg-amber-500/15 border border-amber-500/30 text-amber-400">
+            <HelpCircle className="w-3 h-3" /> Uncertain
+          </span>
+        );
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="card-nixtio p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <History className="w-5 h-5 text-teal-600" />
-            Screening Session History
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Log of voice analyses and acoustic biomarker extractions (Total: {total})
+          <div className="flex items-center gap-2">
+            <History className="w-5 h-5 text-accent" />
+            <h2 className="text-xl font-bold tracking-tight text-txt">
+              Screening History & Audit Trail
+            </h2>
+          </div>
+          <p className="text-xs text-txt-muted mt-0.5">
+            Historical log of clinical acoustic screening sessions (Total: {total})
           </p>
         </div>
         <button
           onClick={() => loadHistory(page * pageSize)}
           disabled={loading}
-          className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition"
+          className="touch-target px-4 py-2 bg-surface-2 hover:bg-border text-txt rounded-xl text-xs font-semibold flex items-center gap-2 transition border border-border"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-accent' : ''}`} /> Refresh
         </button>
       </div>
 
       {/* Mandatory Disclaimer for History */}
-      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-center gap-2">
-        <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0" />
+      <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs flex items-center gap-2">
+        <ShieldAlert className="w-4 h-4 flex-shrink-0" />
         <span>
-          <strong>Research screening tool only — not a medical diagnosis.</strong> Historical records are strictly for exploratory triage and clinical study.
+          <strong>Research screening tool only — not a medical diagnosis.</strong> Historical recordings are stored de-identified for longitudinal exploratory triaging.
         </span>
       </div>
 
       {error && (
-        <div className="p-4 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-center gap-2">
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      <div className="card-nixtio overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-teal-600" />
-            <span>Loading screening history...</span>
+          <div className="p-16 text-center text-xs text-txt-muted flex flex-col items-center justify-center gap-3">
+            <RefreshCw className="w-6 h-6 animate-spin text-accent" />
+            <span>Loading historical screening records...</span>
           </div>
         ) : sessions.length === 0 ? (
-          <div className="p-12 text-center text-xs text-slate-500">
-            No screening sessions recorded yet. Record or upload an audio sample to start.
+          <div className="p-16 text-center text-xs text-txt-muted">
+            No screening sessions recorded yet. Start a voice test to build your history.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+            <table className="w-full text-left text-xs text-txt-muted">
+              <thead className="bg-surface-2/60 border-b border-border text-[11px] font-bold text-txt uppercase tracking-wider font-mono">
                 <tr>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Patient ID</th>
-                  <th className="px-4 py-3">Filename</th>
-                  <th className="px-4 py-3">Result</th>
-                  <th className="px-4 py-3">Confidence</th>
-                  <th className="px-4 py-3">Jitter / Shimmer / HNR</th>
-                  <th className="px-4 py-3 text-right">Model</th>
+                  <th className="px-5 py-3.5">Timestamp</th>
+                  <th className="px-5 py-3.5">Participant ID</th>
+                  <th className="px-5 py-3.5">Risk Level</th>
+                  <th className="px-5 py-3.5">Confidence</th>
+                  <th className="px-5 py-3.5">Jitter / Shimmer / HNR</th>
+                  <th className="px-5 py-3.5">Model</th>
+                  <th className="px-5 py-3.5 text-right">Erase</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border/60">
                 {sessions.map((s) => {
-                  const isPd = s.prediction === 'parkinsons';
                   const biomarkers = s.biomarkers || {};
                   return (
-                    <tr key={s.id} className="hover:bg-slate-50/70 transition">
-                      <td className="px-4 py-3 whitespace-nowrap font-mono text-[11px]">
+                    <tr key={s.id} className="hover:bg-surface-2/40 transition">
+                      <td className="px-5 py-4 whitespace-nowrap font-mono text-[11px] text-txt">
                         {s.created_at ? new Date(s.created_at).toLocaleString() : 'N/A'}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-900">
+                      <td className="px-5 py-4 whitespace-nowrap font-medium text-txt">
                         {s.patient_identifier || s.id.slice(0, 8)}
                       </td>
-                      <td className="px-4 py-3 max-w-[140px] truncate text-slate-500" title={s.original_filename}>
-                        {s.original_filename}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {getRiskBadge(s.risk_level || (s.prediction === 'parkinsons' ? 'elevated' : 'low'))}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${
-                            isPd ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                          }`}
-                        >
-                          {isPd ? <AlertOctagon className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                          {isPd ? 'PD Indicators' : 'Healthy Profile'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-mono font-bold text-slate-800">
+                      <td className="px-5 py-4 whitespace-nowrap font-mono font-bold text-txt">
                         {(s.confidence * 100).toFixed(1)}%
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-mono text-[11px] text-slate-500">
+                      <td className="px-5 py-4 whitespace-nowrap font-mono text-[11px] text-txt-muted">
                         J: {biomarkers.jitter_local_percent?.toFixed(2) ?? '-'}% | S: {biomarkers.shimmer_local_percent?.toFixed(2) ?? '-'}% | H: {biomarkers.hnr_mean_db?.toFixed(1) ?? '-'}dB
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-right font-mono text-[10px] text-slate-400 uppercase">
+                      <td className="px-5 py-4 whitespace-nowrap font-mono text-[10px] text-txt-muted uppercase">
                         {s.model_architecture}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(s.id)}
+                          disabled={deletingId === s.id}
+                          aria-label="Delete screening session"
+                          className="touch-target p-2 text-txt-muted hover:text-red-400 hover:bg-surface-2 rounded-lg transition"
+                          title="Delete session (GDPR erasure)"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -133,22 +176,22 @@ export const HistoryTable: React.FC = () => {
 
         {/* Pagination Controls */}
         {total > pageSize && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
-            <span className="text-slate-500">
+          <div className="px-5 py-4 bg-surface-2/40 border-t border-border flex items-center justify-between text-xs">
+            <span className="text-txt-muted">
               Showing {page * pageSize + 1} to {Math.min((page + 1) * pageSize, total)} of {total} records
             </span>
             <div className="flex items-center gap-2">
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="px-2.5 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40 transition"
+                className="touch-target px-3 py-1.5 border border-border rounded-lg bg-surface hover:bg-surface-2 disabled:opacity-40 transition"
               >
                 Previous
               </button>
               <button
                 disabled={(page + 1) * pageSize >= total}
                 onClick={() => setPage((p) => p + 1)}
-                className="px-2.5 py-1 border border-slate-300 rounded hover:bg-white disabled:opacity-40 transition"
+                className="touch-target px-3 py-1.5 border border-border rounded-lg bg-surface hover:bg-surface-2 disabled:opacity-40 transition"
               >
                 Next
               </button>

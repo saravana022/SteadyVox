@@ -2,6 +2,112 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+@layer base {
+  :root {
+    /* Nixtio-inspired Light Palette */
+    --bg: #FFFFFF;
+    --surface: #F5F5F6;
+    --surface-2: #EAEAEC;
+    --border: rgba(0, 0, 0, 0.09);
+    --border-hover: rgba(0, 0, 0, 0.20);
+    --text: #0A0A0A;
+    --text-muted: #6B7280;
+    --accent: #6366F1;
+    --accent-hover: #4F46E5;
+    --accent-subtle: rgba(99, 102, 241, 0.08);
+    --risk-low: #059669;
+    --risk-low-bg: rgba(5, 150, 105, 0.08);
+    --risk-uncertain: #D97706;
+    --risk-uncertain-bg: rgba(217, 119, 6, 0.08);
+    --risk-elevated: #DC2626;
+    --risk-elevated-bg: rgba(220, 38, 38, 0.08);
+  }
+
+  .dark {
+    /* Nixtio-inspired Dark First Palette */
+    --bg: #000000;
+    --surface: #0B0B0C;
+    --surface-2: #141416;
+    --border: rgba(255, 255, 255, 0.10);
+    --border-hover: rgba(255, 255, 255, 0.22);
+    --text: #FFFFFF;
+    --text-muted: #A1A1AA;
+    --accent: #6366F1;
+    --accent-hover: #4F46E5;
+    --accent-subtle: rgba(99, 102, 241, 0.14);
+    --risk-low: #10B981;
+    --risk-low-bg: rgba(16, 185, 129, 0.12);
+    --risk-uncertain: #F59E0B;
+    --risk-uncertain-bg: rgba(245, 158, 11, 0.12);
+    --risk-elevated: #EF4444;
+    --risk-elevated-bg: rgba(239, 68, 68, 0.14);
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    letter-spacing: -0.025em;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  /* Accessible focus states for motor/tremor accessibility */
+  *:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Hairline glass & card styling */
+.glass-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.card-nixtio {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-nixtio:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+}
+
+/* Eyebrow Label */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+/* Touch Targets: 48px+ for motor disability support */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
 }

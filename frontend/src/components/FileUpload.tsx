@@ -15,16 +15,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelected, disabled
 
   const handleFile = (file: File) => {
     setError(null);
-    const validExtensions = ['.wav', '.mp3', '.flac', '.ogg', '.webm', '.m4a'];
+    const validExtensions = ['.wav', '.mp3', '.flac', '.ogg', '.webm', '.m4a', '.mp4'];
     const hasValidExt = validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext));
 
     if (!hasValidExt && !file.type.startsWith('audio/')) {
-      setError('Please upload a valid audio file (WAV, MP3, or FLAC).');
+      setError('Please provide a valid audio file (WAV, MP3, FLAC, or WebM).');
       return;
     }
 
-    if (file.size > 25 * 1024 * 1024) {
-      setError('File size exceeds 25MB limit.');
+    if (file.size > 20 * 1024 * 1024) {
+      setError('Audio file size exceeds the 20MB limit.');
       return;
     }
 
@@ -43,10 +43,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelected, disabled
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-4">
       {error && (
-        <div className="mb-3 p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2 border border-red-200">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start gap-2.5">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
@@ -66,14 +66,22 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelected, disabled
             }
           }}
           onClick={() => inputRef.current?.click()}
-          className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl cursor-pointer transition text-center ${
-            dragOver ? 'border-teal-500 bg-teal-50/50' : 'border-slate-300 hover:border-teal-400 bg-white hover:bg-slate-50/60'
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              inputRef.current?.click();
+            }
+          }}
+          aria-label="Upload audio file"
+          className={`card-nixtio p-10 flex flex-col items-center justify-center cursor-pointer transition text-center space-y-4 ${
+            dragOver ? 'border-accent bg-accent-subtle' : 'hover:border-border-hover'
           }`}
         >
           <input
             ref={inputRef}
             type="file"
-            accept="audio/*,.wav,.mp3,.flac"
+            accept="audio/*,.wav,.mp3,.flac,.webm,.m4a"
             disabled={disabled}
             onChange={(e) => {
               if (e.target.files && e.target.files[0]) {
@@ -82,33 +90,35 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelected, disabled
             }}
             className="hidden"
           />
-          <div className="w-12 h-12 rounded-full bg-slate-100 text-teal-600 flex items-center justify-center mb-3">
-            <UploadCloud className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-border text-accent flex items-center justify-center shadow-inner">
+            <UploadCloud className="w-7 h-7" />
           </div>
-          <p className="text-sm font-semibold text-slate-800 mb-1">Click to browse or drag and drop audio</p>
-          <p className="text-xs text-slate-500">Supports WAV, MP3, FLAC (Recommended: sustained vowel /a/)</p>
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-txt">Click to browse or drop an audio recording</p>
+            <p className="text-xs text-txt-muted">Supports WAV, MP3, FLAC, WebM (Recommended: sustained vowel /a/)</p>
+          </div>
         </div>
       ) : (
-        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+        <div className="card-nixtio p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-accent-subtle text-accent border border-accent/20 flex items-center justify-center">
                 <FileAudio className="w-5 h-5" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-semibold text-slate-900 truncate max-w-xs">{selectedFile.name}</p>
-                <p className="text-[11px] text-slate-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                <p className="text-xs font-bold text-txt truncate max-w-xs">{selectedFile.name}</p>
+                <p className="text-[11px] font-mono text-txt-muted">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
               </div>
             </div>
             <button
               onClick={clearFile}
-              className="p-1 text-slate-400 hover:text-red-500 rounded-md transition"
-              title="Remove audio"
+              className="touch-target p-2 text-txt-muted hover:text-red-400 rounded-lg transition"
+              title="Remove file"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
-          {previewUrl && <audio controls src={previewUrl} className="w-full h-9" />}
+          {previewUrl && <audio controls src={previewUrl} className="w-full h-10 mt-2" />}
         </div>
       )}
     </div>

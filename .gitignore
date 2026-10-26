@@ -73,11 +73,16 @@ data/telemonitoring/splits/
 *.pkl
 *.joblib
 
-# Storage (MinIO / PostgreSQL volumes)
+# Storage (MinIO / PostgreSQL volumes / SQLite)
 minio_data/
 postgres_data/
+storage/
+dataset/
+*.db
+*.sqlite3
 
 # Testing & Coverage
 .pytest_cache/
 .coverage
 htmlcov/
+

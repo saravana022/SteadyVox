@@ -13,14 +13,14 @@ class Settings(BaseSettings):
 
     # Core Environment
     PROJECT_NAME: str = "SteadyVox"
-    VERSION: str = "0.1.0"
+    VERSION: str = "2.1.0"
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     SECRET_KEY: str = "steadyvox-dev-secret-key-replace-in-production"
 
     # Mandatory Research Disclaimer
-    DISCLAIMER_TEXT: str = "Research screening tool only — not a medical diagnosis."
+    DISCLAIMER_TEXT: str = "Research screening tool only — not a medical diagnosis. Consult a qualified neurologist."
 
     # CORS Origins
     BACKEND_CORS_ORIGINS: List[str] = [
@@ -55,14 +55,32 @@ class Settings(BaseSettings):
     S3_REGION: str = "us-east-1"
     S3_USE_SSL: bool = False
 
-    # Inference & Model
-    MODEL_PATH: str = "ml/saved_models/cnn_baseline_best.pt"
-    MODEL_ARCHITECTURE: str = "cnn_baseline"
-    CONFIDENCE_THRESHOLD: float = 0.50
+    # Inference & Model Versions
+    PRIMARY_MODEL_NAME: str = "Tabular MLP (Clinical Ground Truth)"
+    PRIMARY_MODEL_VERSION: str = "2.1.0-oxford"
+    PRIMARY_MODEL_PROVENANCE: str = "Oxford Parkinson's Disease Dataset (UCI ML Repository, 195 recordings, Little et al.)"
+    SECONDARY_MODEL_NAME: str = "CNN + BiLSTM (Acoustic Spectrogram)"
+    SECONDARY_MODEL_VERSION: str = "1.0.0-synthetic-benchmark"
+    SECONDARY_MODEL_PROVENANCE: str = "Sustained /a/ biophysical simulation benchmark (600 speakers, synthetic ablation)"
+    
+    MODEL_PATH: str = "ml/saved_models/tabular_mlp_best.pt"
+    AUDIO_MODEL_PATH: str = "ml/saved_models/cnn_bilstm_best.pt"
     SAMPLE_RATE: int = 16000
     AUDIO_DURATION_SECONDS: float = 3.0
 
-    # Monitoring
+    # Risk Calibration Thresholds
+    RISK_LOW_THRESHOLD: float = 0.40
+    RISK_ELEVATED_THRESHOLD: float = 0.70
+
+    # Quality Gate Rules
+    MIN_AUDIO_DURATION_SECONDS: float = 1.0
+    MAX_AUDIO_DURATION_SECONDS: float = 12.0
+    MAX_FILE_SIZE_BYTES: int = 15 * 1024 * 1024  # 15 MB
+    MIN_SNR_DB: float = 9.0
+    MAX_CLIPPING_RATIO: float = 0.03
+    MAX_SILENCE_RATIO: float = 0.75
+
+    # Monitoring & Observability
     PROMETHEUS_METRICS_ENABLED: bool = True
 
 

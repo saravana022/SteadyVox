@@ -7,13 +7,29 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Form,
+    Depends,
+    HTTPException,
+    Request,
+    BackgroundTasks,
+    status,
+)
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.config import settings
 from backend.app.db.session import get_db
 from backend.app.db.models import ScreeningSession
-from backend.app.schemas.screening import ScreeningResponse, BiomarkersSchema
+from backend.app.schemas.screening import (
+    ScreeningResponse,
+    BiomarkersSchema,
+    ModelProvenanceSchema,
+    ProblemDetail,
+)
 from backend.app.services.inference import inference_service
 from backend.app.services.storage import storage_service
 
@@ -24,66 +40,138 @@ ALLOWED_AUDIO_TYPES = [
     "audio/mpeg", "audio/mp3",
     "audio/flac", "audio/x-flac",
     "audio/ogg", "audio/webm",
-    "application/octet-stream", # for raw audio recordings
+    "audio/mp4", "audio/m4a", "audio/x-m4a",
+    "application/octet-stream",
 ]
 
 
+def _background_upload_audio(audio_bytes: bytes, filename: str, s3_key: str):
+    """Background task to store audio to persistent storage."""
+    try:
+        storage_service.upload_audio(audio_bytes, filename)
+    except Exception as e:
+        print(f"Background audio storage warning: {e}")
+
+
 @router.post(
-    "/upload",
+    "",
     response_model=ScreeningResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Screen audio recording for Parkinson's Disease vocal indicators",
-    description="Uploads a sustained vowel phonation recording (/a/ or /o/), runs acoustic biomarker extraction and CNN+BiLSTM inference, persists results, and stores raw audio.",
+    summary="Primary Voice Screening Endpoint",
+    description="Uploads sustained vowel phonation (/a/ or /o/), validates acoustic signal quality, executes clinical dual-path inference, and records session.",
+    responses={
+        422: {"model": ProblemDetail, "description": "Unusable audio signal (clipping, silence, or high noise)"},
+        400: {"model": ProblemDetail, "description": "Invalid format or empty file"},
+    },
 )
-async def screen_audio_upload(
-    file: UploadFile = File(..., description="Audio file (WAV, MP3, FLAC) containing sustained phonation"),
-    patient_identifier: Optional[str] = Form(None, description="Optional anonymized patient or participant ID"),
+async def screen_audio(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(..., description="Audio file (WAV, MP3, FLAC, WebM, M4A)"),
+    patient_identifier: Optional[str] = Form(None, description="Optional de-identified participant ID"),
+    consent_given: bool = Form(True, description="Explicit consent to retain audio for research screening history"),
+    explain: bool = Form(False, description="Include detailed feature attribution breakdown"),
     db: AsyncSession = Depends(get_db),
 ):
-    # Validate filename extension or content type
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     filename = file.filename or "recording.wav"
     ext = filename.split(".")[-1].lower() if "." in filename else ""
-    if ext not in ["wav", "mp3", "flac", "ogg", "webm", "m4a"] and file.content_type not in ALLOWED_AUDIO_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file format. Please upload a WAV, MP3, or FLAC audio file. (Notice: {settings.DISCLAIMER_TEXT})",
-        )
 
-    # Read audio bytes
+    # 1. Format validation
+    if ext not in ["wav", "mp3", "flac", "ogg", "webm", "m4a", "mp4"] and file.content_type not in ALLOWED_AUDIO_TYPES:
+        problem = ProblemDetail(
+            type="https://steadyvox.org/errors/unsupported-media-type",
+            title="Unsupported Audio Format",
+            status=status.HTTP_400_BAD_REQUEST,
+            detail=f"Format '{ext or file.content_type}' is not supported. Please provide a WAV, MP3, FLAC, or WebM recording.",
+            instance=str(request.url),
+            request_id=request_id,
+        )
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=problem.model_dump())
+
     audio_bytes = await file.read()
-    if len(audio_bytes) < 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Audio file is too short or empty. Please provide at least 1-3 seconds of audio.",
+    if len(audio_bytes) < 512:
+        problem = ProblemDetail(
+            type="https://steadyvox.org/errors/payload-too-small",
+            title="Empty Audio Payload",
+            status=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded audio file is empty or corrupted.",
+            instance=str(request.url),
+            request_id=request_id,
         )
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=problem.model_dump())
 
-    # 1. Run inference & feature extraction
+    if len(audio_bytes) > settings.MAX_FILE_SIZE_BYTES:
+        problem = ProblemDetail(
+            type="https://steadyvox.org/errors/payload-too-large",
+            title="Audio File Too Large",
+            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Audio file size exceeds limit of {settings.MAX_FILE_SIZE_BYTES // (1024*1024)} MB.",
+            instance=str(request.url),
+            request_id=request_id,
+        )
+        return JSONResponse(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, content=problem.model_dump())
+
+    # 2. Run Quality Gate & Dual-Path Inference
     try:
-        result = inference_service.run_screening(audio_bytes, filename)
+        result = inference_service.run_screening(audio_bytes, filename, explain=explain)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Failed to process audio: {str(e)}. Ensure the recording contains audible speech.",
+        problem = ProblemDetail(
+            type="https://steadyvox.org/errors/dsp-processing-failure",
+            title="Acoustic Signal Processing Failure",
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Acoustic feature extraction encountered an unrecoverable error: {str(e)}",
+            instance=str(request.url),
+            request_id=request_id,
         )
+        return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=problem.model_dump())
 
-    # 2. Upload raw audio to S3 / MinIO storage
-    s3_key = storage_service.upload_audio(audio_bytes, filename)
-    audio_url = storage_service.get_presigned_url(s3_key)
+    # 3. Check if audio was rejected by Quality Gate
+    if result.get("quality_rejected"):
+        q_report = result["quality_report"]
+        reasons = "; ".join(q_report.rejection_reasons)
+        problem = ProblemDetail(
+            type="https://steadyvox.org/errors/audio-quality-degraded",
+            title="Acoustic Recording Quality Unusable",
+            status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"The recorded audio cannot be reliably analyzed: {reasons}",
+            instance=str(request.url),
+            request_id=request_id,
+            quality_report=q_report,
+        )
+        return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=problem.model_dump())
 
-    # 3. Persist session metadata into PostgreSQL
+    # 4. Storage Handling (with user consent check)
     session_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    s3_key: Optional[str] = None
+    audio_url: Optional[str] = None
 
+    if consent_given:
+        # Schedule asynchronous upload to keep response snappy
+        ext_dot = f".{ext}" if ext else ".wav"
+        s3_key = f"recordings/{session_id}{ext_dot}"
+        background_tasks.add_task(_background_upload_audio, audio_bytes, filename, s3_key)
+        audio_url = storage_service.get_presigned_url(s3_key)
+
+    # 5. Persist Session Metadata to Database
+    now = datetime.now(timezone.utc)
     db_session = ScreeningSession(
         id=session_id,
         patient_identifier=patient_identifier or f"PATIENT-{session_id[:8].upper()}",
-        audio_s3_key=s3_key,
+        audio_sha256=result["audio_sha256"],
+        audio_s3_key=s3_key if consent_given else None,
         original_filename=filename,
+        risk_level=result["risk_level"],
         prediction=result["prediction"],
         probability=result["probability"],
         confidence=result["confidence"],
+        model_version=result["primary_model"]["version"],
         model_architecture=result["model_architecture"],
+        quality_report=result["quality_report"].model_dump(),
         biomarkers=result["biomarkers"],
+        consent_given=consent_given,
+        latency_ms=result["latency_ms"],
+        stage_latencies=result["stage_latencies"],
         disclaimer=settings.DISCLAIMER_TEXT,
         created_at=now,
     )
@@ -94,34 +182,53 @@ async def screen_audio_upload(
         await db.refresh(db_session)
     except Exception as e:
         await db.rollback()
-        print(f"Database save warning (proceeding): {e}")
+        print(f"Database session save notice: {e}")
 
     return ScreeningResponse(
+        request_id=request_id,
         session_id=session_id,
         patient_identifier=db_session.patient_identifier,
         original_filename=filename,
+        audio_sha256=result["audio_sha256"],
+        risk_level=result["risk_level"],
         prediction=result["prediction"],
         probability=result["probability"],
         confidence=result["confidence"],
-        model_architecture=result["model_architecture"],
+        quality_report=result["quality_report"],
+        primary_model=ModelProvenanceSchema(**result["primary_model"]),
+        secondary_model=ModelProvenanceSchema(**result["secondary_model"]),
         biomarkers=BiomarkersSchema(**result["biomarkers"]),
         audio_url=audio_url,
         latency_ms=result["latency_ms"],
+        stage_latencies=result["stage_latencies"],
         disclaimer=settings.DISCLAIMER_TEXT,
         created_at=now.isoformat(),
     )
 
+
 @router.post(
-    "/",
+    "/upload",
     response_model=ScreeningResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Screen audio recording (alias for /upload)",
-    description="Accepts an audio file and runs the dual‑path inference, persisting the result. This endpoint mirrors the existing `/upload` path for compatibility.",
+    summary="Screen audio recording (Deprecated - Use POST /api/v1/screen)",
+    description="Deprecated compatibility alias for POST /api/v1/screen.",
+    deprecated=True,
 )
-async def screen_audio(
-    file: UploadFile = File(..., description="Audio file (WAV, MP3, FLAC) containing sustained phonation"),
-    patient_identifier: Optional[str] = Form(None, description="Optional anonymized patient or participant ID"),
+async def screen_audio_upload_deprecated(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    patient_identifier: Optional[str] = Form(None),
+    consent_given: bool = Form(True),
+    explain: bool = Form(False),
     db: AsyncSession = Depends(get_db),
 ):
-    # Reuse the existing upload handler logic
-    return await screen_audio_upload(file=file, patient_identifier=patient_identifier, db=db)
+    return await screen_audio(
+        request=request,
+        background_tasks=background_tasks,
+        file=file,
+        patient_identifier=patient_identifier,
+        consent_given=consent_given,
+        explain=explain,
+        db=db,
+    )
