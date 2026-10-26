@@ -16,6 +16,8 @@ from backend.app.db.models import ScreeningSession
 from backend.app.schemas.screening import ScreeningHistoryList, ScreeningHistoryItem
 from backend.app.services.storage import storage_service
 
+from sqlalchemy.orm import selectinload
+
 router = APIRouter()
 
 
@@ -35,9 +37,10 @@ async def list_history(
         total_res = await db.execute(count_stmt)
         total = total_res.scalar() or 0
 
-        # Query items
+        # Query items with eager-loaded patient
         items_stmt = (
             select(ScreeningSession)
+            .options(selectinload(ScreeningSession.patient))
             .order_by(desc(ScreeningSession.created_at))
             .offset(offset)
             .limit(limit)
@@ -48,13 +51,19 @@ async def list_history(
         items = [
             ScreeningHistoryItem(
                 id=s.id,
-                patient_identifier=s.patient_identifier,
+                patient_id=s.patient_id,
+                patient_identifier=s.patient.name if s.patient else (s.patient_identifier or "Anonymous"),
+                patient_name=s.patient.name if s.patient else (s.patient_identifier or "Anonymous"),
+                patient_age=s.patient.age if s.patient else None,
+                patient_gender=s.patient.gender if s.patient else None,
                 original_filename=s.original_filename,
                 audio_sha256=s.audio_sha256,
                 risk_level=s.risk_level or "uncertain",
                 prediction=s.prediction,
                 probability=s.probability,
                 confidence=s.confidence,
+                confidence_interval=s.confidence_interval,
+                explanation=s.explanation,
                 model_version=s.model_version or settings.PRIMARY_MODEL_VERSION,
                 model_architecture=s.model_architecture,
                 quality_report=s.quality_report,
@@ -76,7 +85,11 @@ async def list_history(
     summary="Retrieve single screening session details",
 )
 async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
-    stmt = select(ScreeningSession).where(ScreeningSession.id == session_id)
+    stmt = (
+        select(ScreeningSession)
+        .options(selectinload(ScreeningSession.patient))
+        .where(ScreeningSession.id == session_id)
+    )
     res = await db.execute(stmt)
     session = res.scalar_one_or_none()
     if not session:
@@ -85,15 +98,22 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
             detail=f"Screening session '{session_id}' not found. (Notice: {settings.DISCLAIMER_TEXT})",
         )
 
+    p_name = session.patient.name if session.patient else (session.patient_identifier or "Anonymous")
     return ScreeningHistoryItem(
         id=session.id,
-        patient_identifier=session.patient_identifier,
+        patient_id=session.patient_id,
+        patient_identifier=p_name,
+        patient_name=p_name,
+        patient_age=session.patient.age if session.patient else None,
+        patient_gender=session.patient.gender if session.patient else None,
         original_filename=session.original_filename,
         audio_sha256=session.audio_sha256,
         risk_level=session.risk_level or "uncertain",
         prediction=session.prediction,
         probability=session.probability,
         confidence=session.confidence,
+        confidence_interval=session.confidence_interval,
+        explanation=session.explanation,
         model_version=session.model_version or settings.PRIMARY_MODEL_VERSION,
         model_architecture=session.model_architecture,
         quality_report=session.quality_report,

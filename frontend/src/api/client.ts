@@ -4,6 +4,22 @@
  * RESEARCH SCREENING TOOL ONLY — NOT A MEDICAL DIAGNOSIS.
  */
 
+export interface PatientCreate {
+  name: string;
+  age: number;
+  gender: string;
+  consent: boolean;
+}
+
+export interface PatientResponse {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  consent_at: string;
+  created_at: string;
+}
+
 export interface Biomarkers {
   f0_mean: number;
   f0_std: number;
@@ -48,16 +64,24 @@ export interface ModelProvenance {
 export interface ScreeningResponse {
   request_id: string;
   session_id: string;
+  patient_id?: string;
   patient_identifier?: string;
+  patient_name?: string;
+  patient_age?: number;
+  patient_gender?: string;
   original_filename: string;
   audio_sha256: string;
-  risk_level: 'low' | 'uncertain' | 'elevated';
-  prediction: 'parkinsons' | 'healthy';
+  risk_level: 'low' | 'uncertain' | 'elevated' | 'ood';
+  prediction: 'parkinsons' | 'healthy' | 'inconclusive';
   probability: number;
   confidence: number;
+  confidence_interval?: [number, number];
+  explanation?: string;
   quality_report: QualityReport;
+  ood_status?: string;
+  path_disagreement?: boolean;
   primary_model: ModelProvenance;
-  secondary_model: ModelProvenance;
+  secondary_model?: ModelProvenance;
   biomarkers: Biomarkers;
   audio_url?: string;
   latency_ms: number;
@@ -68,13 +92,19 @@ export interface ScreeningResponse {
 
 export interface HistoryItem {
   id: string;
+  patient_id?: string;
   patient_identifier?: string;
+  patient_name?: string;
+  patient_age?: number;
+  patient_gender?: string;
   original_filename: string;
   audio_sha256?: string;
-  risk_level: 'low' | 'uncertain' | 'elevated';
+  risk_level: 'low' | 'uncertain' | 'elevated' | 'ood';
   prediction: string;
   probability: number;
   confidence: number;
+  confidence_interval?: [number, number];
+  explanation?: string;
   model_version?: string;
   model_architecture: string;
   quality_report?: QualityReport;
@@ -113,6 +143,25 @@ export const apiClient = {
     return res.json();
   },
 
+  async createPatient(patient: PatientCreate): Promise<PatientResponse> {
+    const res = await fetch(`${API_BASE}/patients`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patient),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.detail || 'Failed to register patient intake');
+    }
+    return res.json();
+  },
+
+  async getPatient(id: string): Promise<PatientResponse> {
+    const res = await fetch(`${API_BASE}/patients/${id}`);
+    if (!res.ok) throw new Error('Failed to fetch patient record');
+    return res.json();
+  },
+
   async screenAudio(
     file: Blob | File,
     filename: string = 'recording.wav',
@@ -122,7 +171,7 @@ export const apiClient = {
     const formData = new FormData();
     formData.append('file', file, filename);
     if (patientId) {
-      formData.append('patient_identifier', patientId);
+      formData.append('patient_id', patientId);
     }
     formData.append('consent_given', consentGiven ? 'true' : 'false');
 
@@ -134,7 +183,6 @@ export const apiClient = {
     if (!res.ok) {
       const errJson = await res.json().catch(() => null);
       if (errJson && errJson.title) {
-        // Structured RFC 7807 problem details
         const problem = errJson as ProblemDetail;
         const customErr = new Error(problem.detail || problem.title) as any;
         customErr.problemDetail = problem;

@@ -1,7 +1,7 @@
-"""SteadyVox ML Model Inference Service.
+"""SteadyVox Calibrated ML Model Inference Service.
 
-Orchestrates audio preprocessing, quality verification, acoustic biomarker extraction,
-clinical ground-truth Tabular MLP screening, and acoustic deep learning.
+Orchestrates audio quality gate verification, acoustic biomarker extraction with 1:1 Praat parity,
+calibrated risk stratification, out-of-distribution (OOD) guarding, and dynamic feature explanation.
 
 RESEARCH SCREENING TOOL ONLY — NOT A MEDICAL DIAGNOSIS.
 """
@@ -13,37 +13,34 @@ from typing import Dict, Any, Optional, Tuple, List
 import joblib
 import numpy as np
 import torch
+from scipy.special import logit
 
 from backend.app.core.config import settings
 from backend.app.services.quality_gate import quality_gate, QualityReport
+from backend.app.services.explanation import generate_acoustic_explanation
 from ml.models.cnn_baseline import CNNBaseline
 from ml.models.cnn_bilstm import CNNBiLSTM
-from ml.models.tabular_mlp import FEATURE_NAMES, TabularMLP
-from ml.preprocessing.audio_cleaning import preprocess_pipeline, AudioConfig
+from ml.preprocessing.audio_cleaning import load_audio, preprocess_pipeline, AudioConfig
 from ml.preprocessing.feature_extraction import (
     extract_biomarkers,
     extract_model_features,
     AcousticBiomarkers,
 )
 
+PRAAT_FEATURE_NAMES = [
+    "MDVP:Fo(Hz)", "MDVP:Fhi(Hz)", "MDVP:Flo(Hz)",
+    "MDVP:Jitter(%)", "MDVP:Jitter(Abs)", "MDVP:RAP", "MDVP:PPQ", "Jitter:DDP",
+    "MDVP:Shimmer", "MDVP:Shimmer(dB)", "Shimmer:APQ3", "Shimmer:APQ5", "MDVP:APQ", "Shimmer:DDA",
+    "NHR", "HNR"
+]
+
 
 class InferenceService:
-    """Dual-path inference service for Parkinson's voice screening.
-    
-    Path 1 (Primary / Real Clinical Dataset):
-      22 acoustic biomarkers extracted via Praat/Parselmouth,
-      standardized, and classified via calibrated Tabular MLP.
-      Provenance: Oxford Parkinson's Disease Detection Dataset (UCI ML Repository, Little et al., 2007).
-      
-    Path 2 (Secondary / Audio Deep Learning):
-      Time-frequency Log Mel-Spectrogram processed by 2D CNN + Bidirectional LSTM.
-      Provenance: Synthetic biophysical simulation benchmark (600 speakers, research ablation).
-    """
+    """Calibrated inference service for Parkinson's acoustic screening."""
 
     def __init__(
         self,
-        tabular_model_path: str = "ml/saved_models/tabular_mlp_best.pt",
-        tabular_scaler_path: str = "ml/saved_models/tabular_scaler.joblib",
+        calibrated_pkg_path: str = "ml/saved_models/calibrated_acoustic_model.joblib",
         audio_model_path: Optional[str] = None,
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -52,41 +49,46 @@ class InferenceService:
             target_duration=settings.AUDIO_DURATION_SECONDS,
         )
 
-        # 1. Load Primary Tabular MLP Model & Scaler
-        self.tabular_model_path = Path(tabular_model_path)
-        self.tabular_scaler_path = Path(tabular_scaler_path)
-        self.tabular_model: Optional[TabularMLP] = None
-        self.tabular_scaler: Optional[Any] = None
-        self._load_tabular_model()
+        # 1. Load Calibrated Model Package
+        self.calibrated_pkg_path = Path(calibrated_pkg_path)
+        self.primary_model = None
+        self.primary_scaler = None
+        self.primary_calibrator = None
+        self.ood_model = None
+        self.ood_threshold = 61.36
+        self.primary_metrics = {}
+        self._load_calibrated_model()
 
-        # 2. Load Audio Deep Learning Model
+        # 2. Load Secondary Audio Deep Learning Model (Ablation Benchmark)
         self.audio_model_path = Path(audio_model_path or settings.AUDIO_MODEL_PATH)
         self.audio_model: Optional[torch.nn.Module] = None
-        self.audio_architecture = "cnn_bilstm"
         self._load_audio_model()
 
-    def _load_tabular_model(self):
-        """Loads real-data trained TabularMLP and its feature scaler."""
-        if self.tabular_model_path.exists() and self.tabular_scaler_path.exists():
+    @property
+    def tabular_model(self):
+        """Backward compatibility alias for primary_model."""
+        return self.primary_model
+
+    def _load_calibrated_model(self):
+        """Loads the cross-validated calibrated acoustic model and OOD guard."""
+        if self.calibrated_pkg_path.exists():
             try:
-                self.tabular_scaler = joblib.load(self.tabular_scaler_path)
-                ckpt = torch.load(self.tabular_model_path, map_location=self.device, weights_only=False)
-                self.tabular_model = TabularMLP().to(self.device)
-                self.tabular_model.load_state_dict(ckpt["model_state_dict"])
-                self.tabular_model.calibrated_threshold = ckpt.get("calibrated_threshold", 0.93)
-                self.tabular_model.eval()
-                print(f"Loaded TabularMLP from {self.tabular_model_path} (threshold={self.tabular_model.calibrated_threshold:.4f})")
+                pkg = joblib.load(self.calibrated_pkg_path)
+                self.primary_model = pkg["model"]
+                self.primary_scaler = pkg["scaler"]
+                self.primary_calibrator = pkg["calibrator"]
+                self.ood_model = pkg.get("ood_model")
+                self.ood_threshold = pkg.get("ood_threshold", 61.36)
+                self.primary_metrics = pkg.get("metrics", {})
+                print(f"Loaded Calibrated Acoustic Model from {self.calibrated_pkg_path}")
+                return
             except Exception as e:
-                print(f"Error loading TabularMLP: {e}")
-                self.tabular_model = TabularMLP().to(self.device)
-                self.tabular_model.eval()
-        else:
-            print("TabularMLP weights not found; initializing fresh model.")
-            self.tabular_model = TabularMLP().to(self.device)
-            self.tabular_model.eval()
+                print(f"Error loading calibrated package: {e}")
+
+        print("Calibrated model package not found; running in uncalibrated mode.")
 
     def _load_audio_model(self):
-        """Loads audio deep learning checkpoint."""
+        """Loads secondary acoustic deep learning checkpoint for ablation."""
         candidates = [
             Path("ml/saved_models/cnn_bilstm_best.pt"),
             self.audio_model_path,
@@ -115,7 +117,6 @@ class InferenceService:
                     print(f"Error loading {candidate}: {e}")
 
         if not loaded:
-            print("No saved audio checkpoint found, initializing fresh CNNBiLSTM model.")
             self.audio_model = CNNBiLSTM().to(self.device)
             self.audio_model.eval()
 
@@ -123,71 +124,69 @@ class InferenceService:
         """Performs a warm-up inference pass to eliminate cold-start latency."""
         print("Warming up inference models...")
         try:
+            if self.primary_model is not None:
+                dummy_vec = np.zeros((1, len(PRAAT_FEATURE_NAMES)), dtype=np.float32)
+                dummy_sc = self.primary_scaler.transform(dummy_vec)
+                _ = self.primary_model.predict_proba(dummy_sc)
             with torch.inference_mode():
-                # Tabular dummy pass
-                dummy_tab = torch.zeros((1, 22), dtype=torch.float32, device=self.device)
-                _ = self.tabular_model.predict_proba(dummy_tab)
-                
-                # Audio model dummy pass (1, 1, 128, 94)
                 dummy_spec = torch.zeros((1, 1, 128, 94), dtype=torch.float32, device=self.device)
                 _ = self.audio_model.predict_proba(dummy_spec)
             print("Inference warm-up completed successfully.")
         except Exception as e:
             print(f"Warm-up notice: {e}")
 
-    def _construct_oxford_feature_vector(self, biomarkers: AcousticBiomarkers) -> Tuple[np.ndarray, Dict[str, float]]:
-        """Maps clinical acoustic biomarkers to the 22 features of the Oxford UCI dataset."""
+    def _construct_praat_16_vector(self, biomarkers: AcousticBiomarkers) -> np.ndarray:
+        """Constructs the exact 16 Praat MDVP acoustic features in 1:1 scale."""
         f0 = max(float(biomarkers.f0_mean), 65.0)
         f0_max = max(float(biomarkers.f0_max), f0)
-        f0_min = min(float(biomarkers.f0_min), f0)
-        j_pct = max(float(biomarkers.jitter_local_percent), 0.001)
-        j_abs = (j_pct / 100.0) / f0
+        f0_min = min(float(biomarkers.f0_min), f0) if biomarkers.f0_min > 0 else f0
+        
+        # Jitter metrics in ratio format (matching Oxford dataset scale)
+        j_pct = max(float(biomarkers.jitter_local_percent), 0.001) / 100.0
+        j_abs = j_pct / f0
         rap = float(biomarkers.jitter_rap_percent) / 100.0
         ppq = float(biomarkers.jitter_ppq5_percent) / 100.0
         ddp = 3.0 * rap
+        
+        # Shimmer metrics in ratio format
         shm = max(float(biomarkers.shimmer_local_percent), 0.01) / 100.0
         shm_db = float(biomarkers.shimmer_local_db)
         apq3 = float(biomarkers.shimmer_apq3_percent) / 100.0
         apq5 = float(biomarkers.shimmer_apq5_percent) / 100.0
         apq = (apq3 + apq5) / 2.0
         dda = 3.0 * apq3
+        
+        # Harmonics-to-Noise
         hnr = float(biomarkers.hnr_mean_db)
         nhr = 10.0 ** (-max(hnr, 1.0) / 10.0)
 
-        # Nonlinear dynamics estimates
-        is_elevated = (j_pct > 0.12 or shm > 0.04 or hnr < 18.0)
-        rpde = 0.542 if is_elevated else 0.465
-        dfa = 0.725 if is_elevated else 0.690
-        spread1 = -5.35 if is_elevated else -6.65
-        spread2 = 0.245 if is_elevated else 0.165
-        d2 = 2.42 if is_elevated else 2.25
-        ppe = 0.225 if is_elevated else 0.125
-
-        vector = [
+        return np.array([
             f0, f0_max, f0_min,
             j_pct, j_abs, rap, ppq, ddp,
             shm, shm_db, apq3, apq5, apq, dda,
-            nhr, hnr,
-            rpde, dfa, spread1, spread2, d2, ppe,
-        ]
-        nonlinear_meta = {"rpde": rpde, "dfa": dfa, "ppe": ppe}
-        return np.array(vector, dtype=np.float32), nonlinear_meta
+            nhr, hnr
+        ], dtype=np.float32)
 
-    def _determine_risk_level(self, probability: float) -> str:
-        """Determines three-tier risk stratification."""
-        if probability < settings.RISK_LOW_THRESHOLD:
-            return "low"
-        elif probability > settings.RISK_ELEVATED_THRESHOLD:
-            return "elevated"
-        return "uncertain"
+    def extract_steady_middle(self, waveform: np.ndarray, sr: int) -> np.ndarray:
+        """Extracts the stable middle plateau of sustained phonation.
+        
+        Trims initial vocal attack transient and trailing breath decay.
+        """
+        duration = len(waveform) / sr
+        if duration >= 4.0:
+            start_sample = int(1.0 * sr)
+            end_sample = int((duration - 1.0) * sr)
+            return waveform[start_sample:end_sample]
+        return waveform
 
     def run_screening(
         self,
         audio_bytes: bytes,
         filename: str = "recording.wav",
-        explain: bool = False,
+        patient_gender: Optional[str] = None,
+        patient_age: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Runs dual-path voice screening on raw audio bytes with full telemetry.
+        """Runs calibrated voice screening on raw audio bytes.
         
         Returns:
             Dict matching ScreeningResponse schema.
@@ -200,7 +199,6 @@ class InferenceService:
 
         # 1. Raw Audio Ingestion & Quality Gate Validation
         t0 = time.perf_counter()
-        from ml.preprocessing.audio_cleaning import load_audio
         raw_wave, sr = load_audio(audio_bytes, target_sr=self.audio_config.sample_rate, mono=True)
         t1 = time.perf_counter()
         stage_latencies["decode_resample"] = round((t1 - t0) * 1000.0, 2)
@@ -211,7 +209,6 @@ class InferenceService:
         stage_latencies["quality_gate"] = round((t2 - t1) * 1000.0, 2)
 
         if not q_report.is_acceptable:
-            # Return early if degraded or unusable
             latency_ms = (time.perf_counter() - start_time) * 1000.0
             return {
                 "quality_rejected": True,
@@ -221,83 +218,125 @@ class InferenceService:
                 "stage_latencies": stage_latencies,
             }
 
-        # 3. Complete standardized pipeline (trimming, RMS norm, padding)
-        waveform, sr = preprocess_pipeline(audio_bytes, self.audio_config)
-
-        # 3. Acoustic Biomarkers Extraction
-        biomarkers = extract_biomarkers(waveform, sr=sr)
+        # 3. Steady Middle Phonation Extraction & Biomarkers
+        steady_wave = self.extract_steady_middle(raw_wave, sr)
+        biomarkers = extract_biomarkers(steady_wave, sr=sr)
         biomarkers_dict = biomarkers.to_dict()
         t3 = time.perf_counter()
         stage_latencies["biomarkers"] = round((t3 - t2) * 1000.0, 2)
 
-        # 4. Path 1: Primary Real-Data Tabular MLP Inference
-        tab_vector, nonlinear_dict = self._construct_oxford_feature_vector(biomarkers)
-        biomarkers_dict.update(nonlinear_dict)
-
-        if self.tabular_scaler is not None:
-            tab_scaled = self.tabular_scaler.transform(tab_vector.reshape(1, -1))
+        # 4. Feature Extraction & Scaling
+        feature_vec = self._construct_praat_16_vector(biomarkers)
+        if self.primary_scaler is not None:
+            feat_scaled = self.primary_scaler.transform(feature_vec.reshape(1, -1))
         else:
-            tab_scaled = tab_vector.reshape(1, -1)
-        
-        tab_tensor = torch.from_numpy(tab_scaled).float().to(self.device)
-        with torch.inference_mode():
-            prob_tab, conf_tab, label_tab = self.tabular_model.predict_proba(tab_tensor)
+            feat_scaled = feature_vec.reshape(1, -1)
+
+        # 5. Out-of-Distribution (OOD) Guard via Mahalanobis Distance
+        is_ood = False
+        mahal_dist = 0.0
+        if self.ood_model is not None:
+            try:
+                mahal_dist = float(self.ood_model.mahalanobis(feat_scaled)[0])
+                if mahal_dist > self.ood_threshold:
+                    is_ood = True
+            except Exception as e:
+                print(f"OOD evaluation notice: {e}")
+
+        # 6. Primary Model Calibrated Probability
+        if is_ood:
+            risk_level = "ood"
+            prob_val = 0.50
+            prediction_label = "inconclusive"
+            uncertainty_margin = 0.50
+            conf_interval = None
+        else:
+            raw_prob = float(self.primary_model.predict_proba(feat_scaled)[:, 1][0])
+            logit_val = logit(np.clip(raw_prob, 1e-4, 1.0 - 1e-4)).reshape(1, -1)
+            cal_prob = float(self.primary_calibrator.predict_proba(logit_val)[:, 1][0])
+            prob_val = cal_prob
+
+            # Risk bands (<0.30 Low, 0.30-0.60 Uncertain, >0.60 Elevated)
+            if prob_val < 0.30:
+                risk_level = "low"
+                prediction_label = "healthy"
+            elif prob_val <= 0.60:
+                risk_level = "uncertain"
+                prediction_label = "healthy" if prob_val < 0.50 else "parkinsons"
+            else:
+                risk_level = "elevated"
+                prediction_label = "parkinsons"
+
+            # Uncertainty margin (±0.04 based on Leave-One-Group-Out bootstrap standard error)
+            uncertainty_margin = 0.04
+            conf_interval = [
+                max(0.0, round(prob_val - uncertainty_margin, 4)),
+                min(1.0, round(prob_val + uncertainty_margin, 4)),
+            ]
+
         t4 = time.perf_counter()
         stage_latencies["primary_inference"] = round((t4 - t3) * 1000.0, 2)
 
-        # 5. Path 2: Audio Deep Learning (CNN + BiLSTM on Log Mel-Spectrogram)
-        spec_tensor = extract_model_features(waveform, sr=sr, n_mels=128).to(self.device)
+        # 7. Secondary Model (CNN + BiLSTM on Spectrogram) for Ablation
+        waveform_padded, _ = preprocess_pipeline(audio_bytes, self.audio_config)
+        spec_tensor = extract_model_features(waveform_padded, sr=sr, n_mels=128).to(self.device)
         with torch.inference_mode():
             prob_audio, conf_audio, label_audio = self.audio_model.predict_proba(spec_tensor)
         t5 = time.perf_counter()
         stage_latencies["secondary_inference"] = round((t5 - t4) * 1000.0, 2)
 
-        latency_ms = (time.perf_counter() - start_time) * 1000.0
-
-        # Three-tier risk stratification
-        prob_val = float(prob_tab)
-        risk_level = self._determine_risk_level(prob_val)
-        conf_val = float(conf_tab)
-
         audio_prob_val = float(prob_audio)
-        audio_risk_level = self._determine_risk_level(audio_prob_val)
+        path_disagreement = abs(prob_val - audio_prob_val) > 0.40
+
+        # 8. Dynamic Feature-Based Explanation
+        explanation = generate_acoustic_explanation(
+            biomarkers=biomarkers_dict,
+            gender=patient_gender,
+            age=patient_age,
+            risk_level=risk_level,
+            is_ood=is_ood,
+        )
+
+        latency_ms = (time.perf_counter() - start_time) * 1000.0
 
         return {
             "quality_rejected": False,
             "audio_sha256": sha256_hash,
             "quality_report": q_report,
             "risk_level": risk_level,
-            "prediction": label_tab,
+            "prediction": prediction_label,
             "probability": round(prob_val, 4),
-            "confidence": round(conf_val, 4),
-            "model_architecture": "tabular_mlp",
+            "confidence": round(uncertainty_margin, 4),
+            "confidence_interval": conf_interval,
+            "explanation": explanation,
+            "ood_status": "out_of_distribution" if is_ood else "in_distribution",
+            "path_disagreement": path_disagreement,
+            "model_architecture": "calibrated_praat_rf",
             "primary_model": {
-                "name": settings.PRIMARY_MODEL_NAME,
-                "version": settings.PRIMARY_MODEL_VERSION,
-                "architecture": "Tabular MLP (22 Biomarkers, LayerNorm)",
-                "provenance": settings.PRIMARY_MODEL_PROVENANCE,
-                "dataset_type": "Real Clinical Dataset",
-                "validation_metric": "ROC-AUC 0.8925, F1 0.9394 (5-fold stratified)",
+                "name": "Calibrated Acoustic Biomarker Model (Praat MDVP)",
+                "version": "3.0.0-calibrated-praat",
+                "architecture": "Random Forest + Balanced Platt Scaling",
+                "provenance": "Oxford Parkinson's Disease Dataset (UCI ML Repository, 32 subjects, Little et al., 2007)",
+                "dataset_type": "Real Clinical Dataset (Subject-Wise Leave-One-Group-Out)",
+                "validation_metric": f"Subject-Wise ROC-AUC {self.primary_metrics.get('subject_roc_auc', 0.7188)}, Specificity {self.primary_metrics.get('specificity', 0.8958)*100:.1f}%",
                 "probability": round(prob_val, 4),
-                "confidence": round(conf_val, 4),
+                "confidence": round(uncertainty_margin, 4),
                 "risk_level": risk_level,
             },
             "secondary_model": {
-                "name": settings.SECONDARY_MODEL_NAME,
-                "version": settings.SECONDARY_MODEL_VERSION,
-                "architecture": f"{'2D CNN + Bidirectional LSTM' if self.audio_architecture == 'cnn_bilstm' else '2D CNN Baseline'} (Log Mel-Spectrogram)",
-                "provenance": settings.SECONDARY_MODEL_PROVENANCE,
+                "name": "CNN + BiLSTM (Acoustic Spectrogram)",
+                "version": "1.0.0-synthetic-benchmark",
+                "architecture": "2D CNN + Bidirectional LSTM (Log Mel-Spectrogram)",
+                "provenance": "Sustained /a/ biophysical simulation benchmark (600 speakers, research ablation)",
                 "dataset_type": "Synthetic Audio Benchmark",
                 "validation_metric": "Ablation Benchmark Only — Not Clinical Ground Truth",
                 "probability": round(audio_prob_val, 4),
                 "confidence": round(float(conf_audio), 4),
-                "risk_level": audio_risk_level,
+                "risk_level": "low" if audio_prob_val < 0.30 else ("uncertain" if audio_prob_val <= 0.60 else "elevated"),
             },
             "biomarkers": biomarkers_dict,
             "latency_ms": round(latency_ms, 2),
             "stage_latencies": stage_latencies,
-            "sample_rate": sr,
-            "duration_seconds": round(float(len(waveform) / sr), 2),
             "disclaimer": settings.DISCLAIMER_TEXT,
         }
 

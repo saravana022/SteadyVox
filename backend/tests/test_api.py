@@ -1,4 +1,4 @@
-"""Unit tests for SteadyVox FastAPI backend endpoints with quality gate & RFC 7807 validation."""
+"""Unit tests for SteadyVox FastAPI backend endpoints with quality gate, calibrated model & patient intake."""
 
 import io
 import numpy as np
@@ -59,12 +59,47 @@ async def test_root_endpoint():
 
 
 @pytest.mark.asyncio
+async def test_patient_intake_and_encryption():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Create Patient
+        patient_data = {
+            "name": "Jane Doe",
+            "age": 62,
+            "gender": "Female",
+            "consent": True,
+        }
+        res = await client.post("/api/v1/patients", json=patient_data)
+        assert res.status_code == 201
+        data = res.json()
+        assert "id" in data
+        assert data["name"] == "Jane Doe"
+        assert data["age"] == 62
+        assert data["gender"] == "Female"
+        patient_id = data["id"]
+
+        # Retrieve Patient
+        get_res = await client.get(f"/api/v1/patients/{patient_id}")
+        assert get_res.status_code == 200
+        assert get_res.json()["name"] == "Jane Doe"
+
+
+@pytest.mark.asyncio
 async def test_screen_primary_endpoint():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Register a patient first
+        patient_res = await client.post("/api/v1/patients", json={
+            "name": "John Smith",
+            "age": 55,
+            "gender": "Male",
+            "consent": True,
+        })
+        patient_id = patient_res.json()["id"]
+
         wav_bytes = generate_test_wav_bytes(duration=2.5)
         files = {"file": ("test_phonation.wav", wav_bytes, "audio/wav")}
-        data = {"patient_identifier": "TEST-PATIENT-001", "consent_given": "true"}
+        data = {"patient_id": patient_id, "consent_given": "true"}
 
         response = await client.post("/api/v1/screen", files=files, data=data)
         assert response.status_code == 201
@@ -73,19 +108,23 @@ async def test_screen_primary_endpoint():
         assert "session_id" in res
         assert "request_id" in res
         assert "audio_sha256" in res
-        assert res["patient_identifier"] == "TEST-PATIENT-001"
-        assert res["risk_level"] in ["low", "uncertain", "elevated"]
-        assert res["prediction"] in ["parkinsons", "healthy"]
+        assert res["patient_id"] == patient_id
+        assert res["patient_name"] == "John Smith"
+        assert res["patient_age"] == 55
+        assert res["patient_gender"] == "Male"
+        assert res["risk_level"] in ["low", "uncertain", "elevated", "ood"]
+        assert res["prediction"] in ["parkinsons", "healthy", "inconclusive"]
         assert 0.0 <= res["probability"] <= 1.0
-        assert 0.5 <= res["confidence"] <= 1.0
+        assert res["confidence"] >= 0.0
         assert res["quality_report"]["is_acceptable"] is True
         assert "primary_model" in res
-        assert res["primary_model"]["name"] == settings.PRIMARY_MODEL_NAME
-        assert "secondary_model" in res
+        assert "Calibrated" in res["primary_model"]["name"]
         assert "biomarkers" in res
         assert "hnr_mean_db" in res["biomarkers"]
         assert "jitter_local_percent" in res["biomarkers"]
         assert "shimmer_local_percent" in res["biomarkers"]
+        assert "explanation" in res
+        assert res["explanation"] is not None
         assert "disclaimer" in res
         assert "not a medical diagnosis" in res["disclaimer"].lower()
         assert res["latency_ms"] > 0

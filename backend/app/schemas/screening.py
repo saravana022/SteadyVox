@@ -1,12 +1,47 @@
-"""SteadyVox Pydantic API Schemas with RFC 7807 problem details and model provenance.
+"""SteadyVox Pydantic API Schemas with Patient Intake, RFC 7807 problem details, and model provenance.
 
 RESEARCH SCREENING TOOL ONLY — NOT A MEDICAL DIAGNOSIS.
 """
 
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from backend.app.services.quality_gate import QualityReport
 
+
+# --- Patient Intake Schemas ---
+
+class PatientCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="Patient full name, initials, or pseudonym")
+    age: int = Field(..., ge=18, le=110, description="Patient age (must be between 18 and 110)")
+    gender: str = Field(..., description="Gender: Male, Female, Other, or Prefer not to say")
+    consent: bool = Field(..., description="Explicit consent agreement")
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str) -> str:
+        valid = ["male", "female", "other", "prefer not to say"]
+        if v.strip().lower() not in valid:
+            raise ValueError(f"Gender must be one of {valid}")
+        return v.strip().title()
+
+    @field_validator("consent")
+    @classmethod
+    def validate_consent(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("Informed consent is mandatory before voice intake.")
+        return v
+
+
+class PatientResponse(BaseModel):
+    id: str
+    name: str
+    age: int
+    gender: str
+    consent_at: str
+    created_at: str
+
+
+# --- Screening & Biomarkers Schemas ---
 
 class BiomarkersSchema(BaseModel):
     f0_mean: float = Field(..., description="Mean Fundamental Frequency in Hz")
@@ -41,22 +76,30 @@ class ModelProvenanceSchema(BaseModel):
 class ScreeningResponse(BaseModel):
     request_id: str = Field(..., description="Unique request tracing ID")
     session_id: str = Field(..., description="Screening record session UUID")
-    patient_identifier: Optional[str] = Field(None, description="Optional de-identified subject tag")
+    patient_id: Optional[str] = Field(None, description="Patient UUID")
+    patient_identifier: Optional[str] = Field(None, description="Patient display identifier / name")
+    patient_name: Optional[str] = Field(None, description="Patient display name")
+    patient_age: Optional[int] = Field(None, description="Patient age")
+    patient_gender: Optional[str] = Field(None, description="Patient gender")
     original_filename: str = Field(..., description="Uploaded audio file name")
     audio_sha256: str = Field(..., description="SHA-256 integrity hash of raw audio payload")
     
     # Three-tier Clinical Risk Output
-    risk_level: str = Field(..., description="Categorical risk stratification: 'low', 'uncertain', or 'elevated'")
+    risk_level: str = Field(..., description="Categorical risk stratification: 'low', 'uncertain', 'elevated', or 'ood'")
     prediction: str = Field(..., description="Binary classification label: 'healthy' or 'parkinsons'")
     probability: float = Field(..., description="Primary risk probability score [0.0 - 1.0]")
-    confidence: float = Field(..., description="Prediction confidence score [0.5 - 1.0]")
+    confidence: float = Field(..., description="Model uncertainty margin (e.g. ±0.04)")
+    confidence_interval: Optional[List[float]] = Field(None, description="95% probability confidence interval [low, high]")
+    explanation: Optional[str] = Field(None, description="Dynamic clinically grounded feature explanation")
     
-    # Input Quality Validation
+    # Input Quality & Safety Guards
     quality_report: QualityReport = Field(..., description="Acoustic quality gate validation results")
+    ood_status: Optional[str] = Field("in_distribution", description="'in_distribution' or 'out_of_distribution'")
+    path_disagreement: bool = Field(False, description="True if primary and secondary paths diverge significantly")
     
-    # Dual-Path Model Provenance
-    primary_model: ModelProvenanceSchema = Field(..., description="Primary real-data validated model")
-    secondary_model: ModelProvenanceSchema = Field(..., description="Secondary acoustic deep-learning model")
+    # Model Provenance
+    primary_model: ModelProvenanceSchema = Field(..., description="Primary real-data calibrated model")
+    secondary_model: Optional[ModelProvenanceSchema] = Field(None, description="Dev-only ablation benchmark")
     
     # Extracted Biomarkers
     biomarkers: BiomarkersSchema = Field(..., description="Extracted clinical acoustic perturbations")
@@ -87,15 +130,21 @@ class ProblemDetail(BaseModel):
 
 class ScreeningHistoryItem(BaseModel):
     id: str
+    patient_id: Optional[str] = None
     patient_identifier: Optional[str] = None
+    patient_name: Optional[str] = None
+    patient_age: Optional[int] = None
+    patient_gender: Optional[str] = None
     original_filename: str
     audio_sha256: Optional[str] = None
     risk_level: str = "uncertain"
     prediction: str
     probability: float
     confidence: float
-    model_version: str = "2.1.0-oxford"
-    model_architecture: str
+    confidence_interval: Optional[List[float]] = None
+    explanation: Optional[str] = None
+    model_version: str = "3.0.0-calibrated-praat"
+    model_architecture: str = "calibrated_praat_rf"
     quality_report: Optional[Dict[str, Any]] = None
     biomarkers: Dict[str, float]
     disclaimer: str
@@ -105,4 +154,4 @@ class ScreeningHistoryItem(BaseModel):
 class ScreeningHistoryList(BaseModel):
     total: int
     items: List[ScreeningHistoryItem]
-    disclaimer: str = "Research screening tool only — not a medical diagnosis."
+    disclaimer: str

@@ -72,6 +72,7 @@ data/telemonitoring/splits/
 # Saved sklearn models
 *.pkl
 *.joblib
+!ml/saved_models/calibrated_acoustic_model.joblib
 
 # Storage (MinIO / PostgreSQL volumes / SQLite)
 minio_data/

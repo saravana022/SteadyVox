@@ -14,6 +14,7 @@ from backend.app.db.session import init_db, engine
 from backend.app.middleware.request_id import RequestTracingMiddleware
 from backend.app.api.endpoints.screening import router as screening_router
 from backend.app.api.endpoints.history import router as history_router
+from backend.app.api.endpoints.patients import router as patients_router
 from backend.app.services.inference import inference_service
 from backend.app.services.storage import storage_service
 
@@ -52,6 +53,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "screening", "description": "Unified voice screening and quality validation"},
         {"name": "history", "description": "Screening records timeline and audit history"},
+        {"name": "patients", "description": "Patient intake registration and privacy management"},
         {"name": "health", "description": "Service health checks and readiness probes"},
     ],
     lifespan=lifespan,
@@ -77,6 +79,7 @@ if settings.PROMETHEUS_METRICS_ENABLED:
 # Include Routers
 app.include_router(screening_router, prefix="/api/v1/screen", tags=["screening"])
 app.include_router(history_router, prefix="/api/v1/history", tags=["history"])
+app.include_router(patients_router, prefix="/api/v1/patients", tags=["patients"])
 
 
 @app.get("/api/v1/health", tags=["health"])

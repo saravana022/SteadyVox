@@ -9,11 +9,10 @@ import {
   RefreshCw,
   AlertCircle,
   FileCheck,
-  ShieldCheck,
   Menu,
   X,
 } from 'lucide-react';
-import { apiClient, ScreeningResponse, ProblemDetail } from './api/client';
+import { apiClient, ScreeningResponse, ProblemDetail, PatientResponse } from './api/client';
 import { ThemeToggle } from './components/ThemeToggle';
 import { LandingHero } from './components/LandingHero';
 import { ProcessSteps } from './components/ProcessSteps';
@@ -21,6 +20,7 @@ import { VoiceTasksGrid } from './components/VoiceTasksGrid';
 import { WhoItsFor } from './components/WhoItsFor';
 import { FAQAccordion } from './components/FAQAccordion';
 import { ConsentModal } from './components/ConsentModal';
+import { PatientIntakeForm } from './components/PatientIntakeForm';
 import { AudioRecorder } from './components/AudioRecorder';
 import { FileUpload } from './components/FileUpload';
 import { ScreeningResult } from './components/ScreeningResult';
@@ -30,7 +30,7 @@ import { ParkinsonKnowledgeHub } from './components/ParkinsonKnowledgeHub';
 export default function App() {
   const [activeTab, setActiveTab] = useState<'overview' | 'screen' | 'history' | 'evidence'>('overview');
   const [inputMode, setInputMode] = useState<'record' | 'upload'>('record');
-  const [patientId, setPatientId] = useState('');
+  const [registeredPatient, setRegisteredPatient] = useState<PatientResponse | null>(null);
   const [activeFile, setActiveFile] = useState<{ blob: Blob; filename: string } | null>(null);
   const [screeningResult, setScreeningResult] = useState<ScreeningResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,7 +91,7 @@ export default function App() {
       const response = await apiClient.screenAudio(
         activeFile.blob,
         activeFile.filename,
-        patientId.trim() || undefined,
+        registeredPatient?.id,
         retainAudioConsent
       );
       setScreeningResult(response);
@@ -308,48 +308,44 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-8 animate-fade-in">
             {screeningResult ? (
               <ScreeningResult result={screeningResult} onReset={handleReset} />
+            ) : !registeredPatient ? (
+              <PatientIntakeForm onComplete={(p) => setRegisteredPatient(p)} />
             ) : (
               <div className="space-y-8">
-                {/* Screening Setup Banner */}
+                {/* Screening Setup Banner with Active Participant */}
                 <div className="card-nixtio p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase text-accent tracking-wider font-mono">
                       <Waves className="w-4 h-4" />
-                      Phonatory Dysarthria Assessment
+                      Step 2 of 3 • Acoustic Phonation Capture
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-txt">
                       Parkinson's Disease Voice Screening
                     </h2>
                     <p className="text-xs sm:text-sm text-txt-muted max-w-2xl leading-relaxed">
-                      Sustain vowel <strong className="text-txt">/a/</strong> for 3–5 seconds. SteadyVox extracts 22 gold-standard acoustic features and scores them via our clinical Oxford-validated Tabular MLP.
+                      Sustain vowel <strong className="text-txt">/a/</strong> for 3–5 seconds. SteadyVox extracts 16 gold-standard Praat acoustic features and scores them via our calibrated clinical model with out-of-distribution guards.
                     </p>
                   </div>
-                  <div className="flex-shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl border border-border bg-surface-2 text-xs text-txt-muted">
-                    <ShieldCheck className="w-5 h-5 text-accent flex-shrink-0" />
-                    <div>
-                      <span className="font-bold text-txt block">Quality-Gated</span>
-                      <span className="text-[11px]">Real-time noise & clipping checks</span>
+                  <div className="flex-shrink-0 flex items-center gap-3">
+                    <div className="px-4 py-3 rounded-xl border border-border bg-surface-2 text-xs">
+                      <span className="text-[11px] text-txt-muted block">Participant:</span>
+                      <strong className="text-txt font-bold">{registeredPatient.name}</strong>
+                      <span className="text-txt-muted text-[11px] ml-1.5">
+                        ({registeredPatient.age}y, {registeredPatient.gender})
+                      </span>
                     </div>
+                    <button
+                      onClick={() => setRegisteredPatient(null)}
+                      className="text-xs text-accent hover:underline px-2 py-1 font-semibold"
+                    >
+                      Change
+                    </button>
                   </div>
                 </div>
 
                 {/* Screening Input Panel */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="lg:col-span-2 card-nixtio p-6 sm:p-8 space-y-6">
-                    {/* Participant ID Input */}
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-txt-muted mb-2 font-mono">
-                        Participant / Session Identifier (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. PARTICIPANT-042 or TRIAL-B-01"
-                        value={patientId}
-                        onChange={(e) => setPatientId(e.target.value)}
-                        className="w-full px-4 py-3 text-xs border border-border rounded-xl bg-surface-2 text-txt focus:outline-none focus:border-accent transition font-mono"
-                      />
-                    </div>
-
                     {/* Mode Toggle: Record vs Upload */}
                     <div className="flex items-center gap-3 border-b border-border pb-5">
                       <button

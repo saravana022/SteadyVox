@@ -1,0 +1,90 @@
+{
+  "last_reviewed": "October 2026",
+  "sources": [
+    "Movement Disorder Society (MDS) Clinical Diagnostic Criteria",
+    "Parkinson's Foundation Consensus Clinical Review",
+    "National Institute of Neurological Disorders and Stroke (NINDS)"
+  ],
+  "symptoms": [
+    {
+      "id": "tremor",
+      "name": "Resting Tremor",
+      "type": "motor",
+      "prevalence": "70-80%",
+      "description": "Involuntary 4-6 Hz oscillatory shaking occurring predominantly at rest (often pill-rolling in hands). Usually unilateral onset.",
+      "early_indicator": true
+    },
+    {
+      "id": "bradykinesia",
+      "name": "Bradykinesia",
+      "type": "motor",
+      "prevalence": "95-100%",
+      "description": "Slowness of movement initiation and execution with progressive decrement in amplitude during repetitive actions.",
+      "early_indicator": true
+    },
+    {
+      "id": "rigidity",
+      "name": "Cogwheel Rigidity",
+      "type": "motor",
+      "prevalence": "85-90%",
+      "description": "Involuntary muscular stiffness and resistance to passive limb flexion, often feeling like a ratchet or cogwheel.",
+      "early_indicator": false
+    },
+    {
+      "id": "hypophonia",
+      "name": "Hypophonia & Vocal Dysarthria",
+      "type": "motor",
+      "prevalence": "70-90%",
+      "description": "Soft, monotone, or breathy vocal production caused by laryngeal rigidity, glottal tremor, and reduced respiratory support.",
+      "early_indicator": true
+    },
+    {
+      "id": "postural_instability",
+      "name": "Postural Instability",
+      "type": "motor",
+      "prevalence": "50-70%",
+      "description": "Impaired balance, gait freezing, and reduced righting reflexes leading to falls, typically appearing in moderate-to-advanced stages.",
+      "early_indicator": false
+    },
+    {
+      "id": "anosmia",
+      "name": "Hyposmia / Loss of Smell",
+      "type": "non-motor",
+      "prevalence": "75-90%",
+      "description": "Reduced olfactory acuity that frequently precedes cardinal motor signs by 5 to 10 years due to early olfactory bulb Lewy pathology.",
+      "early_indicator": true
+    },
+    {
+      "id": "rbd",
+      "name": "REM Sleep Behavior Disorder (RBD)",
+      "type": "non-motor",
+      "prevalence": "40-60%",
+      "description": "Loss of normal muscle atonia during REM sleep causing vivid dream enactment, shouting, or thrashing in bed.",
+      "early_indicator": true
+    },
+    {
+      "id": "constipation",
+      "name": "Dysautonomia & Constipation",
+      "type": "non-motor",
+      "prevalence": "60-80%",
+      "description": "Autonomic nervous system dysfunction affecting enteric nervous system plexuses years prior to clinical motor diagnosis.",
+      "early_indicator": true
+    },
+    {
+      "id": "depression_anxiety",
+      "name": "Depression and Anxiety",
+      "type": "non-motor",
+      "prevalence": "40-50%",
+      "description": "Neurochemical disruptions in dopamine, serotonin, and noradrenaline pathways manifesting as mood and motivational changes.",
+      "early_indicator": false
+    },
+    {
+      "id": "cognitive_slowing",
+      "name": "Cognitive Slowing (Bradyphrenia)",
+      "type": "non-motor",
+      "prevalence": "30-50%",
+      "description": "Executive functioning changes, slowed information processing, and difficulties in multitasking or complex planning.",
+      "early_indicator": false
+    }
+  ]
+}

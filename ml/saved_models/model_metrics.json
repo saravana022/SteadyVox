@@ -1,0 +1,60 @@
+{
+  "model_name": "Calibrated Acoustic Biomarker Model",
+  "model_version": "3.0.0-calibrated-praat",
+  "feature_set": "16 Praat MDVP Acoustic Features (1:1 Reproducible Parity)",
+  "features": [
+    "MDVP:Fo(Hz)",
+    "MDVP:Fhi(Hz)",
+    "MDVP:Flo(Hz)",
+    "MDVP:Jitter(%)",
+    "MDVP:Jitter(Abs)",
+    "MDVP:RAP",
+    "MDVP:PPQ",
+    "Jitter:DDP",
+    "MDVP:Shimmer",
+    "MDVP:Shimmer(dB)",
+    "Shimmer:APQ3",
+    "Shimmer:APQ5",
+    "MDVP:APQ",
+    "Shimmer:DDA",
+    "NHR",
+    "HNR"
+  ],
+  "validation_strategy": "Subject-Wise Leave-One-Group-Out (LOGO)",
+  "dataset": "Oxford Parkinson's Disease Dataset (UCI ML Repository, 32 subjects, 195 recordings)",
+  "metrics": {
+    "roc_auc": 0.7049,
+    "roc_auc_ci": [
+      0.6272,
+      0.7826
+    ],
+    "subject_roc_auc": 0.7188,
+    "pr_auc": 0.8878,
+    "pr_auc_ci": [
+      0.8386,
+      0.9327
+    ],
+    "brier_score": 0.2138,
+    "specificity": 0.8958,
+    "sensitivity": 0.4762,
+    "balanced_accuracy": 0.686,
+    "f1_score": 0.6306,
+    "pct_healthy_non_elevated": 89.58,
+    "confusion_matrix": {
+      "tn": 43,
+      "fp": 5,
+      "fn": 77,
+      "tp": 70
+    }
+  },
+  "risk_bands": {
+    "low": "< 0.30",
+    "uncertain": "0.30 - 0.60",
+    "elevated": "> 0.60",
+    "operating_threshold": 0.6
+  },
+  "ood_guard": {
+    "method": "Ledoit-Wolf Mahalanobis Distance",
+    "p99_threshold": 61.36
+  }
+}

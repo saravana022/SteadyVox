@@ -20,10 +20,11 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from backend.app.core.config import settings
 from backend.app.db.session import get_db
-from backend.app.db.models import ScreeningSession
+from backend.app.db.models import ScreeningSession, Patient
 from backend.app.schemas.screening import (
     ScreeningResponse,
     BiomarkersSchema,
@@ -68,6 +69,7 @@ async def screen_audio(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="Audio file (WAV, MP3, FLAC, WebM, M4A)"),
+    patient_id: Optional[str] = Form(None, description="Optional registered patient UUID"),
     patient_identifier: Optional[str] = Form(None, description="Optional de-identified participant ID"),
     consent_given: bool = Form(True, description="Explicit consent to retain audio for research screening history"),
     explain: bool = Form(False, description="Include detailed feature attribution breakdown"),
@@ -112,9 +114,30 @@ async def screen_audio(
         )
         return JSONResponse(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, content=problem.model_dump())
 
-    # 2. Run Quality Gate & Dual-Path Inference
+    # Look up patient details if patient_id is provided
+    patient_name: Optional[str] = None
+    patient_age: Optional[int] = None
+    patient_gender: Optional[str] = None
+
+    if patient_id:
+        try:
+            p_res = await db.execute(select(Patient).where(Patient.id == patient_id, Patient.deleted_at.is_(None)))
+            pat = p_res.scalar_one_or_none()
+            if pat:
+                patient_name = pat.name
+                patient_age = pat.age
+                patient_gender = pat.gender
+        except Exception as e:
+            print(f"Patient lookup notice: {e}")
+
+    # 2. Run Quality Gate & Calibrated Inference
     try:
-        result = inference_service.run_screening(audio_bytes, filename, explain=explain)
+        result = inference_service.run_screening(
+            audio_bytes,
+            filename=filename,
+            patient_gender=patient_gender,
+            patient_age=patient_age,
+        )
     except Exception as e:
         problem = ProblemDetail(
             type="https://steadyvox.org/errors/dsp-processing-failure",
@@ -147,7 +170,6 @@ async def screen_audio(
     audio_url: Optional[str] = None
 
     if consent_given:
-        # Schedule asynchronous upload to keep response snappy
         ext_dot = f".{ext}" if ext else ".wav"
         s3_key = f"recordings/{session_id}{ext_dot}"
         background_tasks.add_task(_background_upload_audio, audio_bytes, filename, s3_key)
@@ -155,9 +177,12 @@ async def screen_audio(
 
     # 5. Persist Session Metadata to Database
     now = datetime.now(timezone.utc)
+    display_identifier = patient_name or patient_identifier or f"PATIENT-{session_id[:8].upper()}"
+
     db_session = ScreeningSession(
         id=session_id,
-        patient_identifier=patient_identifier or f"PATIENT-{session_id[:8].upper()}",
+        patient_id=patient_id,
+        patient_identifier=display_identifier,
         audio_sha256=result["audio_sha256"],
         audio_s3_key=s3_key if consent_given else None,
         original_filename=filename,
@@ -165,8 +190,10 @@ async def screen_audio(
         prediction=result["prediction"],
         probability=result["probability"],
         confidence=result["confidence"],
+        confidence_interval=result.get("confidence_interval"),
+        explanation=result.get("explanation"),
         model_version=result["primary_model"]["version"],
-        model_architecture=result["model_architecture"],
+        model_architecture=result.get("model_architecture", "calibrated_praat_rf"),
         quality_report=result["quality_report"].model_dump(),
         biomarkers=result["biomarkers"],
         consent_given=consent_given,
@@ -187,16 +214,24 @@ async def screen_audio(
     return ScreeningResponse(
         request_id=request_id,
         session_id=session_id,
-        patient_identifier=db_session.patient_identifier,
+        patient_id=patient_id,
+        patient_identifier=display_identifier,
+        patient_name=patient_name or display_identifier,
+        patient_age=patient_age,
+        patient_gender=patient_gender,
         original_filename=filename,
         audio_sha256=result["audio_sha256"],
         risk_level=result["risk_level"],
         prediction=result["prediction"],
         probability=result["probability"],
         confidence=result["confidence"],
+        confidence_interval=result.get("confidence_interval"),
+        explanation=result.get("explanation"),
         quality_report=result["quality_report"],
+        ood_status=result.get("ood_status", "in_distribution"),
+        path_disagreement=result.get("path_disagreement", False),
         primary_model=ModelProvenanceSchema(**result["primary_model"]),
-        secondary_model=ModelProvenanceSchema(**result["secondary_model"]),
+        secondary_model=ModelProvenanceSchema(**result["secondary_model"]) if result.get("secondary_model") else None,
         biomarkers=BiomarkersSchema(**result["biomarkers"]),
         audio_url=audio_url,
         latency_ms=result["latency_ms"],
@@ -218,6 +253,7 @@ async def screen_audio_upload_deprecated(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    patient_id: Optional[str] = Form(None),
     patient_identifier: Optional[str] = Form(None),
     consent_given: bool = Form(True),
     explain: bool = Form(False),
@@ -227,6 +263,7 @@ async def screen_audio_upload_deprecated(
         request=request,
         background_tasks=background_tasks,
         file=file,
+        patient_id=patient_id,
         patient_identifier=patient_identifier,
         consent_given=consent_given,
         explain=explain,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import symptomsData from '../data/symptoms.json';
 import {
   Brain,
   Activity,
@@ -112,72 +113,6 @@ export function ParkinsonKnowledgeHub() {
         'Non-motor complications including cognitive changes or hallucinations',
       ],
       impact: 'Complete dependence on caregivers and specialized palliative or clinical nursing.',
-    },
-  ];
-
-  const motorSymptoms = [
-    {
-      name: 'Resting Tremor',
-      badge: 'Classic Hallmark',
-      desc: 'Involuntary rhythmic oscillation (typically 4–6 Hz) appearing when muscles are at rest, often described as a "pill-rolling" motion in fingers or hands.',
-    },
-    {
-      name: 'Bradykinesia & Hypokinesia',
-      badge: 'Mandatory Diagnostic Criterion',
-      desc: 'Slowness in initiating voluntary movements, with progressive reduction in amplitude and speed during repetitive actions (e.g. finger tapping).',
-    },
-    {
-      name: 'Rigidity & Resistance',
-      badge: 'Cogwheel / Lead-pipe',
-      desc: 'Increased muscle tone causing continuous stiffness throughout passive limb movement, creating a ratcheting ("cogwheel") sensation.',
-    },
-    {
-      name: 'Vocal Dysphonia & Hypophonia',
-      badge: 'Voice Biomarker Focus',
-      desc: 'Reduced vocal loudness, breathy tone, acoustic pitch tremor, increased jitter/shimmer, and monotone delivery due to laryngeal rigidity.',
-    },
-    {
-      name: 'Postural Instability & Gait Freezing',
-      badge: 'Mid-to-Late Stage',
-      desc: 'Impaired righting reflexes leading to retropulsion, festinating (shuffling) steps, and sudden episodic motor blocks ("freezing of gait").',
-    },
-    {
-      name: 'Micrographia',
-      badge: 'Early Motor Clue',
-      desc: 'Handwriting becomes noticeably cramped, tiny, and progressively smaller across a sentence due to impaired fine motor motor control.',
-    },
-  ];
-
-  const nonMotorSymptoms = [
-    {
-      name: 'Loss of Smell (Hyposmia/Anosmia)',
-      badge: 'Prodromal (5–10 Years Early)',
-      desc: 'Diminished olfactory sensation often develops years before motor onset, reflecting early Lewy body pathology in the olfactory bulb.',
-    },
-    {
-      name: 'REM Sleep Behavior Disorder (RBD)',
-      badge: 'Strong Neurodegenerative Predictor',
-      desc: 'Loss of normal muscle atonia during REM sleep, causing individuals to physically act out vivid, violent, or intense dreams.',
-    },
-    {
-      name: 'Autonomic Dysfunction',
-      badge: 'Peripheral Nervous System',
-      desc: 'Orthostatic hypotension (dizziness when standing), severe chronic constipation, urinary urgency, and excessive perspiration.',
-    },
-    {
-      name: 'Neuropsychiatric & Mood Changes',
-      badge: 'Dopamine & Serotonin Deficits',
-      desc: 'Clinically significant depression, generalized anxiety, emotional blunting, and profound apathy affecting motivation and engagement.',
-    },
-    {
-      name: 'Cognitive Changes & Fatigue',
-      badge: 'Executive Function',
-      desc: 'Slowed processing speed, reduced multitasking ability, persistent central fatigue, and potential dementia in advanced disease stages.',
-    },
-    {
-      name: 'Dysphagia (Swallowing Impairment)',
-      badge: 'Aspiration Risk Management',
-      desc: 'Difficulties coordinating oropharyngeal swallowing reflexes, leading to coughing during meals, sialorrhea (drooling), and choking risks.',
     },
   ];
 
@@ -471,33 +406,47 @@ export function ParkinsonKnowledgeHub() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {(symptomCategory === 'all' || symptomCategory === 'motor') &&
-                motorSymptoms.map((sym, idx) => (
-                  <div key={idx} className="card-nixtio p-5 space-y-2.5 border-border/80 hover:border-accent/40 transition">
+              {symptomsData.symptoms
+                .filter((s) => symptomCategory === 'all' || s.type === symptomCategory)
+                .map((sym) => (
+                  <div
+                    key={sym.id}
+                    className={`card-nixtio p-5 space-y-2.5 border-border/80 transition ${
+                      sym.type === 'motor' ? 'hover:border-accent/40' : 'hover:border-amber-500/40'
+                    }`}
+                  >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono uppercase bg-accent-subtle text-accent px-2 py-0.5 rounded border border-accent/20 font-bold">
-                        {sym.badge}
-                      </span>
-                      <span className="text-[10px] font-mono text-txt-muted">Motor</span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border font-bold ${
+                            sym.type === 'motor'
+                              ? 'bg-accent-subtle text-accent border-accent/20'
+                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          }`}
+                        >
+                          {sym.type}
+                        </span>
+                        {sym.early_indicator && (
+                          <span className="text-[9px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                            Early Sign
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono text-txt-muted">Prev: {sym.prevalence}</span>
                     </div>
                     <h4 className="text-sm font-bold text-txt">{sym.name}</h4>
-                    <p className="text-xs text-txt-muted leading-relaxed">{sym.desc}</p>
+                    <p className="text-xs text-txt-muted leading-relaxed">{sym.description}</p>
                   </div>
                 ))}
+            </div>
 
-              {(symptomCategory === 'all' || symptomCategory === 'non-motor') &&
-                nonMotorSymptoms.map((sym, idx) => (
-                  <div key={idx} className="card-nixtio p-5 space-y-2.5 border-border/80 hover:border-amber-500/40 transition">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono uppercase bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20 font-bold">
-                        {sym.badge}
-                      </span>
-                      <span className="text-[10px] font-mono text-txt-muted">Non-Motor</span>
-                    </div>
-                    <h4 className="text-sm font-bold text-txt">{sym.name}</h4>
-                    <p className="text-xs text-txt-muted leading-relaxed">{sym.desc}</p>
-                  </div>
-                ))}
+            <div className="p-4 rounded-xl border border-border bg-surface-2/40 text-[11px] text-txt-muted flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <strong>Clinical Sources:</strong> {symptomsData.sources.join(' • ')}
+              </div>
+              <div className="font-mono text-txt-muted flex-shrink-0">
+                Last reviewed: {symptomsData.last_reviewed}
+              </div>
             </div>
           </div>
         )}
